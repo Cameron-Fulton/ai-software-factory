@@ -1,0 +1,18 @@
+# Reads the factory's records (as root: they live under /root) and writes the page.
+# Writes only into /var/lib/factory-dashboard; everything else is read-only to it.
+[Unit]
+Description=Factory dashboard: collect metrics and write the page
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/factory-dashboard/src
+ExecStart=/usr/bin/python3 -m factory_dashboard.collect --out /var/lib/factory-dashboard/www
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/factory-dashboard
+# a read-only reader of a database in WAL mode still has to write its shared-memory index
+ReadWritePaths=-/root/.archon/archon.db-shm -/root/.archon/archon.db-wal
+PrivateTmp=yes
+NoNewPrivileges=yes
+PrivateNetwork=yes
+Nice=10

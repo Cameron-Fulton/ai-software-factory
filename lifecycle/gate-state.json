@@ -1,0 +1,11 @@
+{
+  "lastCommit": null,
+  "currentTask": null,
+  "lastHarden": null,
+  "diagramDrift": false,
+  "lastAudit": "2026-10-09",
+  "quietMode": null,
+  "config": {
+    "reviewer": "inline"
+  }
+}
