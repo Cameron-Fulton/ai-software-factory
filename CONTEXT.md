@@ -18,9 +18,9 @@ models did the work and why things failed, so the owner can watch models and the
 - **Login** — one subscription account in the engine's pool; out of usage until its reset time.
 
 ## Modules
-- **collect** — reads the sources and writes the page; the only code that touches factory data.
+- **collect** — reads the sources and writes `data.json`; the only code that touches factory data.
 - **prices** — the API price table behind every cost estimate.
-- **page.html** — the template; the collector embeds the data where `/*DATA*/null` sits.
+- **web** — the dashboard app; it fetches `data.json` and does all aggregation in the browser.
 
 ## Out-of-scope concepts
 - **Billing** — the factory runs on subscriptions; dollars here are estimates, not invoices.
