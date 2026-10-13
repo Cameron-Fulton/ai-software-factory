@@ -28,7 +28,7 @@ export interface Run {
     ready: boolean | null;
 }
 
-export type TaskStatus = "merged" | "in progress" | "needs a person" | "other";
+export type TaskStatus = "merged" | "in progress" | "needs a person" | "waiting" | "closed" | "other";
 
 export interface Task {
     project: string;

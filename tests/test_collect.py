@@ -69,6 +69,8 @@ def scenario():
         "8": {"issue": 8, "title": "Another", "url": f"{REPO}/issues/8", "stage": "blocked",
               "reason": "it changes a file the operator holds (CLAUDE.md), and those wait for you. " + LEAK},
     }}
+    loops["journalx"]["9"] = {"issue": 9, "title": "Nothing to build", "url": f"{REPO}/issues/9", "stage": "closed"}
+    loops["journalx"]["10"] = {"issue": 10, "title": "Depends on 9", "url": f"{REPO}/issues/10", "stage": "waiting"}
     pool = {"a": {"blockedUntil": int((NOW + 3600) * 1000), "blockReason": "quota"},
             "b": {"blockedUntil": int((NOW - 60) * 1000)}}
     return c.collect(engine(runs, events), loops, pool, NOW)
@@ -111,6 +113,10 @@ class Collect(unittest.TestCase):
         self.assertTrue(cats <= {name for name, _ in c.CATEGORIES} | {"Other"})
         task = next(t for t in self.d["tasks"] if t["issue"] == 8)
         self.assertEqual((task["status"], task["blockedBecause"]), ("needs a person", "Held for a person"))
+
+    def test_closed_and_waiting_tasks_do_not_read_as_merged_or_needing_a_person(self):
+        status = {t["issue"]: t["status"] for t in self.d["tasks"]}
+        self.assertEqual((status[9], status[10]), ("closed", "waiting"))
 
     def test_steps_are_priced_per_model(self):
         self.assertEqual({s["model"] for s in self.d["steps"]}, {"claude-opus-5-5", "claude-haiku-5-5"})

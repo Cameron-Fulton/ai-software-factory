@@ -18,6 +18,8 @@ const statusTone: Record<string, string> = {
     merged: "text-success-primary",
     "in progress": "text-brand-secondary",
     "needs a person": "text-warning-primary",
+    waiting: "text-tertiary",
+    closed: "text-tertiary",
     other: "text-tertiary",
 };
 
@@ -109,6 +111,8 @@ export const TasksTable = ({ tasks, title = "Tasks", description }: { tasks: Tas
                                 { id: "in progress", label: "In progress" },
                                 { id: "needs a person", label: "Needs a person" },
                                 { id: "merged", label: "Merged" },
+                                { id: "waiting", label: "Waiting on other work" },
+                                { id: "closed", label: "Closed without a change" },
                             ]}
                         >
                             {(item) => <Select.Item id={item.id}>{item.label}</Select.Item>}

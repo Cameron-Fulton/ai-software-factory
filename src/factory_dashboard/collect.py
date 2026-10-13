@@ -34,7 +34,10 @@ DB = os.environ.get("ARCHON_DB", "/root/.archon/archon.db")
 POOL = os.environ.get("ARCHON_ACCOUNT_POOL_FILE", "/root/.archon/claude-account-pool.json")
 LOOPS = os.environ.get("FACTORY_LOOPS", "journalx=/root/journalx/.factory/milestone-loop.json,"
                                         "fathom=/root/fathom/.factory/milestone-loop.json")
-ACTIVE = {"ship", "review", "queue", "repair"}
+ACTIVE = {"ship", "review", "queue", "repair", "deliver"}
+# the loop's stage -> what the owner reads; anything new and unknown shows as "other"
+STATUS = {"done": "merged", "blocked": "needs a person", "waiting": "waiting", "closed": "closed",
+          **{stage: "in progress" for stage in ACTIVE}}
 WEIGHTS = {"first_try": 0.40, "cost": 0.30, "time": 0.15, "rework": 0.15}  # owner's choice, 2026-10-09
 
 ISSUE_URL = re.compile(r"https://github\.com/([\w.-]+/[\w.-]+)/issues/(\d+)")
@@ -231,9 +234,8 @@ def collect(db: sqlite3.Connection, loops: dict[str, dict], pool: dict, now: flo
                 "project": project, "issue": issue, "title": title_of(job.get("title")),
                 "url": job.get("url") if ISSUE_URL.match(job.get("url") or "") else None,
                 "pr": job.get("pr") if PR_URL.match(job.get("pr") or "") else None,
-                "status": "merged" if stage == "done" else "needs a person" if stage == "blocked"
-                          else "in progress" if stage in ACTIVE else "other",
-                "stage": stage if stage in ACTIVE | {"done", "blocked"} else "other",
+                "status": STATUS.get(stage, "other"),
+                "stage": stage if stage in STATUS else "other",
                 "blockedBecause": category(reason) if reason else None,
                 "started": started, "finished": finished if stage == "done" else None,
                 "runs": len(linked), "reviews": len(reviews),
