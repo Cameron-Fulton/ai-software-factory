@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "project": "factory-dashboard",
+  "profile": "python",
+  "homes": [
+    {
+      "path": "src",
+      "purpose": "implementation",
+      "owner": "factory-dashboard",
+      "consumers": [
+        "project agents and maintainers"
+      ]
+    },
+    {
+      "path": "web",
+      "purpose": "the dashboard app (Next.js static export on the Untitled UI kit)",
+      "owner": "factory-dashboard",
+      "consumers": [
+        "the owner's browser, through deploy/install.sh"
+      ]
+    },
+    {
+      "path": "tests",
+      "purpose": "tests",
+      "owner": "factory-dashboard",
+      "consumers": [
+        "project agents and maintainers"
+      ]
+    },
+    {
+      "path": "deploy",
+      "purpose": "host service units, proxy route and the install script",
+      "owner": "factory-dashboard",
+      "consumers": [
+        "the factory host operator"
+      ]
+    },
+    {
+      "path": "docs",
+      "purpose": "documentation",
+      "owner": "factory-dashboard",
+      "consumers": [
+        "project agents and maintainers"
+      ]
+    },
+    {
+      "path": "lifecycle",
+      "purpose": "gates and review evidence",
+      "owner": "factory-dashboard",
+      "consumers": [
+        "project agents and maintainers"
+      ]
+    },
+    {
+      "path": "memory",
+      "purpose": "session continuity",
+      "owner": "factory-dashboard",
+      "consumers": [
+        "project agents and maintainers"
+      ]
+    },
+    {
+      "path": ".scratch",
+      "purpose": "temporary session work",
+      "owner": "factory-dashboard",
+      "consumers": [
+        "project agents and maintainers"
+      ],
+      "kind": "scratch",
+      "retention": "preserve until owner confirms replacement or disposal; never infer from age alone"
+    },
+    {
+      "path": "outputs",
+      "purpose": "generated deliverables",
+      "owner": "factory-dashboard",
+      "consumers": [
+        "project agents and maintainers"
+      ],
+      "kind": "generated",
+      "retention": "preserve until owner confirms replacement or disposal; never infer from age alone"
+    }
+  ],
+  "root_files": [],
+  "components": [],
+  "external": [
+    {
+      "path": "D:/logs/factory-dashboard",
+      "owner": "factory-dashboard",
+      "purpose": "runtime logs",
+      "consumers": [
+        "operators and runtime monitors"
+      ],
+      "retention": "project log rotation policy; preserve incident evidence"
+    }
+  ]
+}
