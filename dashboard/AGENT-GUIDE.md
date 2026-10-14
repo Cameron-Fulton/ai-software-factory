@@ -51,7 +51,9 @@ score, for every enrolled project (JournalX and fathom today).
 | Proxy route | `/data/coolify/proxy/dynamic/factory-dashboard.yaml` |
 | Code on host | `/opt/factory-dashboard` |
 
-Not a Coolify application: nothing to redeploy there. Rerun `deploy/install.sh` to update.
+Not a Coolify application: nothing to redeploy there. Rerun `dashboard/deploy/install.sh` to update.
+
+The dashboard lives in the `dashboard/` folder of `Cameron-Fulton/ai-software-factory` (merged 2026-10-14). Everything outside `dashboard/` tracks Cole Medin's upstream (`coleam00/ai-software-factory`): keep local changes out of those files so upstream syncs stay clean, and never push, open a PR, file an issue or comment upstream.
 
 ## System Rules
 
