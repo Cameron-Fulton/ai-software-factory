@@ -54,10 +54,19 @@ def scenario():
         ("r4", "c9", "smoke", "completed", "{}", "2026-10-08 12:00:00", "2026-10-08 12:01:00"),
     ]
     events = [
-        ("r1", "node_completed", "implement", step("claude-opus-5-5"), "2026-10-08 10:20:00"),
-        ("r2", "node_completed", "verdict", step("claude-haiku-5-5", structured_output={"ready": True}),
+        ("r1", "node_started", "deliver__impl__implement", "{}", "2026-10-08 10:01:00"),
+        ("r1", "node_completed", "deliver__impl__implement",
+         step("claude-opus-5-5", tier="large", effort="high", attempt=1), "2026-10-08 10:20:00"),
+        ("r1", "node_started", "deliver__corrections.fix__implement", "{}", "2026-10-08 10:21:00"),
+        ("r1", "node_failed", "deliver__corrections.fix__implement", json.dumps({"error": LEAK}), "2026-10-08 10:22:00"),
+        ("r1", "node_started", "deliver__corrections.fix__implement", "{}", "2026-10-08 10:23:00"),
+        ("r1", "node_completed", "deliver__corrections.fix__implement",
+         step("claude-opus-5-5", tier=LEAK, effort="Turbo " + LEAK, attempt=LEAK, failure_kind=LEAK), "2026-10-08 10:25:00"),
+        ("r1", "node_completed", LEAK, step("claude-opus-5-5", failure_kind="review_rejected"), "2026-10-08 10:26:00"),
+        ("r2", "node_completed", "synthesize", step("claude-haiku-5-5", structured_output={"ready": True}, tier="giant"),
          "2026-10-08 10:50:00"),
-        ("r3", "node_failed", "triage", json.dumps({"error": "All 5 Claude accounts in X are blocked; " + LEAK}),
+        ("r3", "node_failed", "triage__triage", json.dumps({"error": "All 5 Claude accounts in X are blocked; " + LEAK,
+                                                         "failure_kind": LEAK}),
          "2026-10-08 12:05:00"),
         ("r3", "workflow_failed", None, json.dumps({"error": "token ghp_" + "a" * 36 + " " + LEAK}),
          "2026-10-08 12:06:00"),
@@ -99,13 +108,44 @@ class Collect(unittest.TestCase):
 
     def test_runs_outside_enrolled_projects_are_left_out(self):
         self.assertEqual({r["id"] for r in self.d["runs"]}, {"r1", "r2", "r3"})
-        self.assertEqual(len(self.d["steps"]), 2)
+        self.assertEqual(len(self.d["steps"]), 4)
 
     def test_no_free_text_from_runs_reaches_the_data(self):
         blob = json.dumps(self.d)
         self.assertNotIn("SECRET ISSUE TEXT", blob)
         self.assertNotIn("PUBLISH_HOLDS", blob)
         self.assertNotIn("ghp_", blob)
+        self.assertNotIn("Turbo", blob)
+
+    def test_every_new_step_field_is_a_name_enum_or_number(self):
+        for s in self.d["steps"]:
+            self.assertTrue(s["step"] == "other" or c.STEP_NAME.fullmatch(s["step"]))
+            self.assertIn(s["role"], set(c.ROLES.values()) | {"other"})
+            self.assertIsInstance(s["repair"], bool)
+            self.assertIn(s["tier"], c.TIERS | {"other", None})
+            self.assertIn(s["effort"], c.EFFORTS | {"other", None})
+            self.assertTrue(s["attempt"] is None or isinstance(s["attempt"], int))
+            self.assertTrue(s["failureKind"] is None or c.ENUM.fullmatch(s["failureKind"]))
+            self.assertTrue(s["started"] is None or isinstance(s["started"], float))
+        for f in self.d["failures"]:
+            self.assertTrue(f["step"] is None or c.STEP_NAME.fullmatch(f["step"]) or f["step"] == "other")
+            self.assertTrue(f["failureKind"] is None or c.ENUM.fullmatch(f["failureKind"]))
+
+    def test_steps_carry_role_repair_and_engine_fields(self):
+        first, repair, odd = self.d["steps"][:3]
+        self.assertEqual((first["role"], first["repair"], first["tier"], first["effort"], first["attempt"]),
+                         ("builder", False, "large", "high", 1))
+        self.assertEqual((repair["role"], repair["repair"], repair["tier"], repair["effort"], repair["attempt"]),
+                         ("builder", True, None, None, None))
+        self.assertEqual((odd["step"], odd["role"], odd["failureKind"]), ("other", "other", "review_rejected"))
+        review = self.d["steps"][3]
+        self.assertEqual((review["role"], review["tier"]), ("reviewer", "other"))
+
+    def test_each_step_pairs_with_its_own_start(self):
+        first, repair = self.d["steps"][:2]
+        self.assertEqual(first["started"], c.parse_time("2026-10-08 10:01:00"))
+        self.assertEqual(repair["started"], c.parse_time("2026-10-08 10:23:00"))  # not the failed attempt's
+        self.assertIsNone(self.d["steps"][3]["started"])
 
     def test_failures_and_stops_become_fixed_categories(self):
         cats = {f["category"] for f in self.d["failures"]}
@@ -120,6 +160,7 @@ class Collect(unittest.TestCase):
 
     def test_steps_are_priced_per_model(self):
         self.assertEqual({s["model"] for s in self.d["steps"]}, {"claude-opus-5-5", "claude-haiku-5-5"})
+        self.assertEqual(self.d["version"], 3)
         self.assertTrue(all(s["cost"] > 0 for s in self.d["steps"]))
 
     def test_logins_show_who_has_usage_left(self):

@@ -53,12 +53,23 @@ Every fork commit touches only fork-owned paths: `dashboard/`, `memory/`, `.know
 **Upstream changed how the factory is scheduled.**
 Upstream PR #16 (2026-10-07) moved scheduling into Archon triggers and retired `.factory/loop.sh` and `factory-timer.service.example`.
 Syncing the repo is safe, but rolling the new version out to JournalX and fathom changes how laps start.
-That rollout needs Cam watching.
+An agent does that rollout and watches it (Cam, 2026-10-14).
 
 **The dashboard reads a file neither repo writes.**
 `milestone-loop.json` appears in neither the fork nor upstream.
-It comes from tooling local to the factory host, possibly the unpushed `feat/supervisor` branch named in landmine K-1119.
-Before rolling out the upstream scheduling change, confirm what writes it and that it survives.
+Each project's own `factory_loop.py` writes it (see the host facts below), so the upstream scheduling change does not touch it as long as those loops keep running.
+
+**Host facts, checked read-only on 2026-10-14.**
+
+- Recorded per step today: model (`model_usage.requested` and `.resolved`, both model names, not tiers), tokens, turns, duration, cost and structured output. `tier`, `effort`, `attempt` and `failure_kind` are absent from all 6,222 `node_completed` events: the fork's Archon pin predates them.
+- Node names: 54 distinct ones carry a model call, nested as `deliver__review__code`, `deliver__corrections.fix__implement` and so on. The collector's role map is keyed on the last `__` segment and was built from that list.
+- Loop state: `/root/<project>/.factory/milestone-loop.json`, written by `factory_loop.py`. JournalX's service runs `/root/journalx/harness/factory_loop.py` (777 lines). fathom's runs `/root/factory-loop/factory_loop.py` (498 lines, identical to `/root/fathom/harness/factory_loop.py`). `/root/factory-loop-next` holds a staged loop and a `swap.sh`.
+- Deploys: the fork has no GitHub workflow that deploys, and nothing on the host pulls it. The host's clone `/root/ai-software-factory` tracks the fork and sits at `e167ddc`, untouched since it was cloned. A merge to the fork's `main` changes nothing that runs.
+- Tasks: 34 for JournalX (27 merged, 5 closed, 1 needs a person, 1 in progress) and 37 for fathom (20 merged, 16 closed, 1 needs a person).
+- Cache: 95% of all input tokens (3.46 billion of 3.64 billion) are cache reads.
+- Models: Sonnet 5 ran 1,331 steps, then Opus 5.5 took over (777). Fable 5.1 never ran. Haiku 5.5 ran once, in a smoke test. Archon's tier settings map small to Haiku 5.5 and medium and large to Opus 5.5.
+- Milestones: JournalX uses GitHub milestones (M1 to M7). fathom has none; its factory work is chosen by the `milestone-2` label.
+- `node_started` times add nothing beyond `duration_ms`: a step's start plus its duration equals its completion to within a second. Waiting time is the gap between steps and runs, not inside them.
 
 **Effort level probably arrives with the upstream sync.**
 At upstream's pinned Archon revision (`5674fd42`), every `node_completed` event records `tier`, `effort`, `attempt` and `failure_kind` (`packages/workflows/src/node-record-serialization.ts`).
@@ -105,15 +116,13 @@ Repo: `ai-software-factory` (the upstream-synced part: everything outside `dashb
 2. Merge it into a new branch `sync/upstream-<date>` with a merge commit. Never rebase or force-push `main`.
 3. Run the repo's own tests: `bin/test_consumer.py`, `bin/test_runtime_host.py`, `bin/test_runtime_resource.py`, `bin/_test_install.py` and the other `bin/test-*.py` files.
 4. Open a pull request that lists the upstream commits and the Archon pin change.
-5. Clean merge and green tests: wait for Cam, or auto-merge once decision 1 allows it.
+5. Clean merge and green tests: the job merges its own PR. A conflict or a failed test leaves the PR open with a label (`upstream-sync-conflict`, `upstream-sync-tests-failed`).
 
-The tests use a fake Archon CLI (`bin/test_consumer.py`), so they should run in Actions with Python alone; confirm on the first run.
-`merge=ours` in `.gitattributes` only works when the job defines the driver (`git config merge.ours.driver true`).
+The tests need only Python 3.12: all seven pass in a clean Linux container after merging upstream (2026-10-14).
+The job sets `merge=ours` for fork-owned paths in `.git/info/attributes` with `git config merge.ours.driver true`, so upstream's `.gitattributes` stays untouched.
+Built as `.github/workflows/upstream-sync.yml`: daily at 06:17 UTC and on demand.
 
-**Check first: does a push to the fork's `main` deploy anything?**
-The fork's librarian commits carry `[skip cd]`, which suggests a deploy pipeline watches `main`.
-If it does, merging a sync PR also deploys the new engine pin.
-Also check whether the host's factory clone tracks the fork or `coleam00` directly; if it tracks upstream, the fork does not control what runs.
+**A push to the fork's `main` deploys nothing** (checked 2026-10-14, see the host facts above), so merging a sync PR changes no running project.
 
 **Conflict policy.**
 
@@ -121,7 +130,7 @@ Also check whether the host's factory clone tracks the fork or `coleam00` direct
 | --- | --- | --- |
 | `dashboard/`, `memory/`, `.knowledge/`, `TODO.md`, root `CLAUDE.md`, `AGENTS.md`, `AGENT-GUIDE.md`, `CONTEXT.md` | Fork | Fork wins automatically (`merge=ours` in `.gitattributes`) |
 | `template/`, `bin/`, `README.md`, `pack.json` | Upstream | Upstream wins unless the fork changed the same lines |
-| Same lines changed on both sides | Both | PR stays open, labeled, with the conflicting hunks listed for Cam |
+| Same lines changed on both sides | Both | PR stays open, labeled, with the conflicting files listed; an agent resolves it |
 
 Keep local changes out of upstream-owned files where possible.
 
@@ -129,11 +138,10 @@ Keep local changes out of upstream-owned files where possible.
 Nothing is ever pushed, opened as a pull request, filed as an issue or commented on there.
 The sync only fetches from them; every write goes to `Cameron-Fulton/ai-software-factory`.
 Each syncing clone, and the Actions job, must add `upstream` with its push URL disabled (`git remote set-url --push upstream DISABLED`); the commands are in the root `AGENT-GUIDE.md`.
-`merge=ours` is not in `.gitattributes` yet; the sync work adds it.
 
 **Rollout to projects.** Syncing the repo changes nothing on running projects.
 Each project upgrades when `factory.py init` reruns in it.
-That step stays manual and is done once with Cam for the scheduling change.
+That step stays manual; an agent runs it for the scheduling change and watches the next laps.
 
 **Done when** the fork is level with upstream, the workflow has opened at least one sync PR on its own, and the projects run the new pin with the dashboard still reading loop state.
 The rollout to projects is the part with real risk; it can finish after phase 1 starts.
@@ -179,7 +187,7 @@ One arm should be the stronger model at lower effort; on current models that oft
 
 Sample size is the hard limit.
 Telling a 20-point gap in first-try rate apart needs roughly 50 paired issues.
-At one pair per project per week that is about six months, so decision 2 is really about how fast Cam wants an answer.
+At one pair per project per week that is about six months; decision 2 sets three, about two months.
 The dashboard groups by experiment and reports the difference with a confidence range.
 
 **Done when** each hypothesis below has a measured answer or a stated reason it cannot be answered yet.
@@ -344,21 +352,42 @@ Recommendation: budget, not cash.
 | Opus with Haiku is faster than Fable | Hours per merged task by combination | Phase 1, observational; experiment to confirm |
 | Project tools are built for human pacing | Median minutes per stage from the tracker data; a reference point, not a test | Phase 2 |
 
-## Decisions needed from Cam
+## Decisions made (Cam, 2026-10-14)
 
-1. **Upstream sync:** auto-merge clean, green sync PRs, or review each one. Recommendation: review each one until it is known whether a push to the fork's `main` deploys; then auto-merge clean and green.
-2. **Experiment pace:** how many issues per week to run twice. Recommendation: three per project per week, which answers the main model questions in about two months.
-3. **Avatar art and accounts:** pixel art (recommended, as in the avatar spec), and approval of a PixelLab account and monthly credit budget.
-4. **Points:** budget or cash, per phase 6. Recommendation: budget.
-5. **Control panel powers:** which actions from phase 3 to allow. Recommendation: all except approve-merge at first.
-6. **Levels:** track record only, or levels that change how an agent works through per-role memory. Recommendation: track record first; memory is a change to the shared workflows and a project of its own.
+1. **Upstream sync:** clean, green sync PRs merge themselves.
+2. **Experiment pace:** three issues per project per week run twice.
+3. **Avatar art and accounts:** pixel art. PixelLab is approved with a starting cap of $25 a month, set by the agent because Cam had no figure; raise or lower it from real use. Third-party reviews put PixelLab's middle plan at $24 a month (unverified; its pricing page did not load). Signing up needs Cam's payment details, so it is raised with him when phase 4 starts.
+4. **Points:** become factory budget, not cash.
+5. **Control panel powers:** every phase 3 action except approve-merge.
+6. **Levels:** track record only, for now.
+7. **Oversight:** Cam is not a developer and does not watch host changes or rollouts. Agents make them, watch the result and roll back what misbehaves.
+
+## Hypothesis answers so far (2026-10-14)
+
+From the host's records: 47 merged tasks with both a builder and a reviewer step.
+
+| Claim | Answer |
+| --- | --- |
+| Fable rarely fails review | Cannot be answered: Fable has never run in the factory. Needs experiment runs. |
+| Most factory requests are cached | Yes. 95% of input tokens are cache reads, 72% to 98% by role and model. |
+| Haiku fails so often it costs more per task than Fable | Cannot be answered: neither model has built a task. |
+| Opus with Haiku is faster than Fable | Cannot be answered: no task has used either pairing. |
+| Sonnet 5 against Opus 5.5 (the pair that did run) | Not separable yet. First-try review: Sonnet 5 28% (8 of 29, range 15% to 46%), Opus 5.5 13% (2 of 16, range 3% to 36%). Cost per completed task: $29.73 against $27.04, with overlapping ranges. The two ran in different weeks, so time confounds the comparison too. |
+| Project tools are built for human pacing | Phase 2. |
+
+The Compare view shows these numbers live and names a combination only when its range clears every other group's.
+
+**Off-the-shelf observability tools (Langfuse, Helicone, Arize Phoenix) were checked and not adopted.**
+Each collects traces at call time through an SDK, a proxy or OpenTelemetry, which means instrumenting Archon, upstream code we do not edit.
+They store full prompts and replies, which breaks the no-free-text rule.
+None of them knows tasks, review verdicts or repairs, the joins the comparison needs.
 
 ## Risks
 
 - **New write paths.** Phase 3 makes the dashboard able to change the factory. Mitigation: fixed action list, separate service, audit log, narrow tokens.
 - **Loop state source.** Rolling out upstream's scheduling change could stop whatever writes `milestone-loop.json`. Mitigation: confirm the writer on the host first.
 - **Small samples.** Two projects produce few tasks per week. Rates carry confidence ranges and overlapping groups are never named as winners.
-- **Accidental deploy.** If the fork's `main` feeds a deploy pipeline, a sync merge deploys a new engine. Mitigation: confirm before any auto-merge.
+- **Accidental deploy.** Checked: a merge to the fork's `main` deploys nothing. Re-check if a deploy workflow or a host pull is ever added.
 - **Price table drift.** Cost estimates go stale when prices change. `prices.py` stays the single source, and unknown models fall back to Archon's own cost figure.
 - **Board effort.** Phase 5 is the largest piece and the least tied to the cost goal, so it comes after the phases that answer the model questions.
 

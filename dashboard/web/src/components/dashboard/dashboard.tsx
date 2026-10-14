@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BarChartSquare02, CpuChip01, LayoutAlt01, RefreshCw01, Users01 } from "@untitledui/icons";
+import { AlertTriangle, BarChartSquare02, CpuChip01, LayoutAlt01, RefreshCw01, Scales02, Users01 } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { ButtonGroup, ButtonGroupItem } from "@/components/base/button-group/button-group";
 import { Select } from "@/components/base/select/select";
@@ -24,16 +24,18 @@ import {
 import { ago, change, count, hoursText, modelName, money, moneyShort, pct, tokens, until, when } from "@/lib/format";
 import { cx } from "@/utils/cx";
 import { ChartCard, Empty, MetricCard } from "./cards";
+import { CompareView } from "./compare";
 import { Lines, RankedBars, StackedColumns } from "./charts";
 import { colorMap, seriesColor } from "./series";
 import { StatusText, TasksTable } from "./tasks-table";
 
-type View = "overview" | "tasks" | "models" | "failures" | "logins";
+type View = "overview" | "tasks" | "models" | "compare" | "failures" | "logins";
 
 const NAV: { id: View; label: string; icon: typeof LayoutAlt01 }[] = [
     { id: "overview", label: "Overview", icon: LayoutAlt01 },
     { id: "tasks", label: "Tasks", icon: BarChartSquare02 },
     { id: "models", label: "Models", icon: CpuChip01 },
+    { id: "compare", label: "Compare", icon: Scales02 },
     { id: "failures", label: "Failures", icon: AlertTriangle },
     { id: "logins", label: "Logins", icon: Users01 },
 ];
@@ -185,6 +187,7 @@ export const Dashboard = () => {
                     {view === "overview" && <Overview data={data} filters={filters} go={go} />}
                     {view === "tasks" && <TasksView data={data} filters={filters} />}
                     {view === "models" && <ModelsView data={data} filters={filters} />}
+                    {view === "compare" && <CompareView data={data} filters={filters} />}
                     {view === "failures" && <FailuresView data={data} filters={filters} />}
                     {view === "logins" && <LoginsView data={data} />}
                 </div>

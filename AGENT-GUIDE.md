@@ -43,5 +43,10 @@ The sync design is phase 0 of `dashboard/project-kb/spec/control-room-plan.md`.
 | GitHub deploys | None: the repo has no `.github` workflows, so a push to `main` deploys nothing from GitHub |
 | Dashboard | See `dashboard/AGENT-GUIDE.md` > `## Deployment` |
 
-Unverified: whether the host's factory clone tracks this fork or upstream directly (plan phase 0, "Check first").
-Stop and ask Cam before anything that changes the factory host or the running projects.
+The host's clone `/root/ai-software-factory` tracks this fork and is never pulled automatically (checked 2026-10-14).
+`.github/workflows/upstream-sync.yml` merges upstream daily and merges its own PR when the merge is clean and the tests pass.
+
+Cam is not a developer and does not watch host changes or rollouts (2026-10-14).
+Agents make approved changes on the host, watch the result and roll back what misbehaves.
+A new kind of change that touches the running projects still needs his go-ahead, asked in plain words.
+The dashboard login is in the shared checkout's root `.env` (`DASHBOARD_USER`, `DASHBOARD_PASSWORD`); the host copy is `/etc/factory-dashboard/login`.
