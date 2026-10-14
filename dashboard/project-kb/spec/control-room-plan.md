@@ -46,8 +46,8 @@ The Cam task "identify the upstream and grant access" is done.
 The factory repo pins an Archon revision in `template/factory/pack.json`.
 Syncing the factory repo moves that pin, so it also moves the engine.
 
-**The fork is 23 commits behind and 2 ahead, and merges clean today.**
-The 2 fork commits are librarian housekeeping (`.knowledge/LANDMINES.md`, `TODO.md`).
+**The fork is 23 commits behind and 11 ahead, and merges clean (2026-10-14).**
+Every fork commit touches only fork-owned paths: `dashboard/`, `memory/`, `.knowledge/LANDMINES.md` and `TODO.md`.
 `git merge-tree` of `origin/main` and `upstream/main` reports no conflicts.
 
 **Upstream changed how the factory is scheduled.**
@@ -119,7 +119,7 @@ Also check whether the host's factory clone tracks the fork or `coleam00` direct
 
 | Path | Owner | On conflict |
 | --- | --- | --- |
-| `.knowledge/`, `TODO.md`, fork-only docs | Fork | Fork wins automatically (`merge=ours` in `.gitattributes`) |
+| `dashboard/`, `memory/`, `.knowledge/`, `TODO.md`, root `CLAUDE.md`, `AGENTS.md`, `AGENT-GUIDE.md`, `CONTEXT.md` | Fork | Fork wins automatically (`merge=ours` in `.gitattributes`) |
 | `template/`, `bin/`, `README.md`, `pack.json` | Upstream | Upstream wins unless the fork changed the same lines |
 | Same lines changed on both sides | Both | PR stays open, labeled, with the conflicting hunks listed for Cam |
 
@@ -128,7 +128,8 @@ Keep local changes out of upstream-owned files where possible.
 **Upstream is read-only.** `coleam00/ai-software-factory` and `coleam00/Archon` are not ours.
 Nothing is ever pushed, opened as a pull request, filed as an issue or commented on there.
 The sync only fetches from them; every write goes to `Cameron-Fulton/ai-software-factory`.
-The local `upstream` remote has its push URL disabled.
+Each syncing clone, and the Actions job, must add `upstream` with its push URL disabled (`git remote set-url --push upstream DISABLED`); the commands are in the root `AGENT-GUIDE.md`.
+`merge=ours` is not in `.gitattributes` yet; the sync work adds it.
 
 **Rollout to projects.** Syncing the repo changes nothing on running projects.
 Each project upgrades when `factory.py init` reruns in it.
