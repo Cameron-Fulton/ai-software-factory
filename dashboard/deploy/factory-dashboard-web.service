@@ -1,0 +1,24 @@
+# Serves the one generated page to the proxy. Runs as a throwaway user that cannot read
+# /root, so the factory's credentials and database are out of its reach. It listens on the
+# Docker bridge address, so the internet reaches it only through the proxy; and because any
+# container on this host can also reach that address, it checks the same password itself.
+[Unit]
+Description=Factory dashboard: serve the page to the proxy
+After=docker.service
+
+[Service]
+DynamicUser=yes
+LoadCredential=login:/etc/factory-dashboard/login
+WorkingDirectory=/opt/factory-dashboard/src
+ExecStart=/usr/bin/python3 -m factory_dashboard.serve --bind 172.17.0.1 --port 8090 --root /var/lib/factory-dashboard/www
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,40 @@
+# Route for the Coolify proxy (Traefik file provider): HTTPS, a password, and no indexing.
+# install.sh fills HOST and USERS and writes it to /data/coolify/proxy/dynamic/.
+http:
+  routers:
+    factory-dashboard:
+      rule: "Host(`HOST`)"
+      entryPoints: [https]
+      service: factory-dashboard
+      middlewares: [factory-dashboard-auth, factory-dashboard-headers]
+      tls:
+        certResolver: letsencrypt
+    factory-dashboard-http:
+      rule: "Host(`HOST`)"
+      entryPoints: [http]
+      service: factory-dashboard
+      middlewares: [factory-dashboard-https]
+  middlewares:
+    factory-dashboard-auth:
+      basicAuth:
+        realm: "Factory dashboard"
+        users:
+          - "USERS"
+    factory-dashboard-headers:
+      headers:
+        customResponseHeaders:
+          X-Robots-Tag: "noindex, nofollow"
+          Cache-Control: "no-store"
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: "no-referrer"
+        stsSeconds: 31536000
+    factory-dashboard-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+  services:
+    factory-dashboard:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:8090"
