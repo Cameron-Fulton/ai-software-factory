@@ -1,0 +1,176 @@
+# Daily merge of coleam00/ai-software-factory into this fork.
+# Upstream is read-only: these jobs only fetch from it, and its push URL is disabled.
+# Clean merge + green tests: the publish job merges its own PR (Cam, 2026-10-14).
+# Conflict or red tests: the PR stays open with a label and nothing merges.
+#
+# Upstream's tests are upstream's code, so they run in a job whose token can only read.
+# The job that can write never executes anything from the merged tree.
+name: Upstream sync
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+env:
+  UPSTREAM: https://github.com/coleam00/ai-software-factory.git
+
+jobs:
+  test:
+    if: github.ref == 'refs/heads/main' # a manual run from another branch would merge that branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      new: ${{ steps.fetch.outputs.new }}
+      upstream: ${{ steps.fetch.outputs.upstream }}
+      tests: ${{ steps.tests.outputs.status }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch upstream
+        id: fetch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git remote add upstream "$UPSTREAM"
+          git remote set-url --push upstream DISABLED
+          git fetch --no-tags upstream main
+          echo "upstream=$(git rev-parse upstream/main)" >> "$GITHUB_OUTPUT"
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "Nothing new upstream."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$(gh pr list --state open --json headRefName -q '.[].headRefName | select(startswith("sync/upstream-"))')" ]; then
+            echo "A sync PR is already open; it has to be settled first."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge and run the repo's tests
+        id: tests
+        if: steps.fetch.outputs.new == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config merge.ours.driver true
+          for p in 'dashboard/**' 'memory/**' '.knowledge/**' '.github/**' /TODO.md /CLAUDE.md /AGENTS.md /AGENT-GUIDE.md /CONTEXT.md; do
+            echo "$p merge=ours" >> .git/info/attributes
+          done
+          if ! git merge --no-ff --no-edit upstream/main; then
+            echo "status=conflict" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          status=pass
+          for t in bin/test*.py bin/_test*.py; do
+            if python3 "$t" > /tmp/out.txt 2>&1; then
+              echo "pass: $t"
+            else
+              status=fail
+              echo "FAIL: $t"
+              tail -40 /tmp/out.txt
+            fi
+          done
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: test
+    if: needs.test.outputs.new == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write # labels
+    env:
+      GH_TOKEN: ${{ github.token }}
+      UPSTREAM_SHA: ${{ needs.test.outputs.upstream }}
+      TESTS: ${{ needs.test.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge the tested upstream commit into a sync branch
+        id: merge
+        run: |
+          git remote add upstream "$UPSTREAM"
+          git remote set-url --push upstream DISABLED
+          git fetch --no-tags upstream main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # fork-owned paths keep the fork's side; set here, not in upstream's .gitattributes
+          git config merge.ours.driver true
+          for p in 'dashboard/**' 'memory/**' '.knowledge/**' '.github/**' /TODO.md /CLAUDE.md /AGENTS.md /AGENT-GUIDE.md /CONTEXT.md; do
+            echo "$p merge=ours" >> .git/info/attributes
+          done
+          branch="sync/upstream-$(date -u +%Y-%m-%d)-${GITHUB_RUN_ID}"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          git switch -c "$branch"
+          if git merge --no-ff --no-edit -m "Sync upstream coleam00/ai-software-factory" "$UPSTREAM_SHA"; then
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only --diff-filter=U > /tmp/conflicts.txt
+            git merge --abort
+            # the PR then shows the conflict on GitHub; nothing is resolved automatically
+            git reset --hard "$UPSTREAM_SHA"
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open the PR, and merge it when clean and green
+        env:
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          CLEAN: ${{ steps.merge.outputs.clean }}
+        run: |
+          git push origin "$BRANCH"
+          base=$(git rev-parse origin/main)
+          pin() { git show "$1:template/factory/pack.json" | grep -o '"integration_revision_required": *"[0-9a-f]*"' | grep -o '[0-9a-f]\{40\}' || true; }
+          pin_old=$(pin "$base")
+          pin_new=$(pin "$UPSTREAM_SHA")
+          {
+            echo "Merges new commits from coleam00/ai-software-factory (read-only upstream)."
+            echo
+            echo "## Upstream commits"
+            git log --oneline --no-merges "$base..$UPSTREAM_SHA" | sed 's/^/- /'
+            echo
+            echo "## Archon pin"
+            if [ "$pin_old" = "$pin_new" ]; then echo "Unchanged: \`$pin_new\`."; else echo "\`$pin_old\` -> \`$pin_new\`. Projects only move to it when \`factory.py init\` reruns there."; fi
+            echo
+            if [ "$CLEAN" = "true" ]; then
+              echo "## Tests"
+              echo "Result of \`bin/test*.py\` and \`bin/_test*.py\` on the merged tree: **$TESTS**. Details are in the workflow run's test job."
+            else
+              echo "## Conflicts"
+              echo "The merge stopped on these files; resolve them by hand:"
+              sed 's/^/- `/; s/$/`/' /tmp/conflicts.txt
+            fi
+          } > /tmp/body.md
+          if ! url=$(gh pr create --base main --head "$BRANCH" --title "Sync upstream $(date -u +%Y-%m-%d)" --body-file /tmp/body.md); then
+            git push origin --delete "$BRANCH" # no orphan branch; the next run retries
+            echo "::error::Could not open the PR. The repo setting 'Allow GitHub Actions to create and approve pull requests' must be on."
+            exit 1
+          fi
+          echo "$url"
+          if [ "$CLEAN" != "true" ]; then
+            gh label create upstream-sync-conflict --color B60205 --force
+            gh pr edit "$url" --add-label upstream-sync-conflict
+          elif [ "$TESTS" != "pass" ]; then
+            gh label create upstream-sync-tests-failed --color D93F0B --force
+            gh pr edit "$url" --add-label upstream-sync-tests-failed
+          else
+            gh pr merge "$url" --merge
+            git push origin --delete "$BRANCH"
+          fi

@@ -11,6 +11,10 @@ models did the work and why things failed, so the owner can watch models and the
   through the issue address in their inputs, or through the task's pull request.
 - **Step** — one engine node inside a run that called a model. It carries the model, tokens,
   turns, time and the engine's own cost figure.
+- **Role** — what a step does, mapped from Archon's node name: builder, reviewer, verifier, merger,
+  planner, triage or other. A step inside a `corrections` node is a repair pass.
+- **Combination** — the builder's model and effort plus the reviewer's model on one task. The
+  Compare view groups tasks by it and gives every rate a 95% range.
 - **First-try review** — a task whose first review said ready and that needed no repair pass.
 - **Rework** — repair passes, failed attempts and extra review rounds on one task.
 - **Efficiency score** — 0 to 100, weighted 40% first-try review, 30% cost per merged task, 15%

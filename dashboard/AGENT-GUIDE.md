@@ -19,7 +19,7 @@ score, for every enrolled project (JournalX and fathom today).
   `data.json` (steps, runs, tasks, failure categories, logins) into `/var/lib/factory-dashboard/www`.
 - `web/` is the app. It fetches `data.json` every 5 minutes and does all aggregation in the
   browser (`web/src/lib/factory-data.ts`), so the range, project and model filters re-slice the
-  same records. Views: overview, tasks, models, failures, logins.
+  same records. Views: overview, tasks, models, compare, failures, logins.
 - `src/factory_dashboard/serve.py` serves the app folder on `172.17.0.1:8090` as a throwaway user
   that cannot read `/root`, and checks the same password as the proxy (any container on the host
   can reach the bridge). The Coolify proxy routes the public name to it behind basic auth
@@ -45,7 +45,7 @@ score, for every enrolled project (JournalX and fathom today).
 
 | What | Value |
 |---|---|
-| Address | `https://factory.5.78.214.154.sslip.io` (password; user and password in this project's `.env`) |
+| Address | `https://factory.5.78.214.154.sslip.io` (password; user and password in the root `.env` of the shared checkout `D:/projects/ai-software-factory`) |
 | Host | `build-server-us-west-2` (5.78.214.154), the factory host |
 | Units | `factory-dashboard-collect.timer`, `factory-dashboard-collect.service`, `factory-dashboard-web.service` |
 | Proxy route | `/data/coolify/proxy/dynamic/factory-dashboard.yaml` |

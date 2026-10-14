@@ -40,6 +40,21 @@ STATUS = {"done": "merged", "blocked": "needs a person", "waiting": "waiting", "
           **{stage: "in progress" for stage in ACTIVE}}
 WEIGHTS = {"first_try": 0.40, "cost": 0.30, "time": 0.15, "rework": 0.15}  # owner's choice, 2026-10-09
 
+# node name -> role, keyed on the last "__" segment of Archon's nested node names
+# (deliver__review__code -> code). Built from the names in the host's archon.db, 2026-10-14.
+ROLES = {
+    "implement": "builder",
+    **{n: "reviewer" for n in ("scope", "synthesize", "code", "tests", "seams", "simplify", "docs", "errors")},
+    **{n: "verifier" for n in ("validate", "await-checks", "await-fix-checks", "ci-attention")},
+    **{n: "merger" for n in ("pr", "sync-pr-body", "merge", "merge.refresh", "assess")},
+    **{n: "planner" for n in ("plan", "investigate")},
+    **{n: "triage" for n in ("triage", "classify")},
+}
+STEP_NAME = re.compile(r"[a-z0-9_.-]{1,80}")
+ENUM = re.compile(r"[a-z0-9_-]{1,40}")
+TIERS = {"small", "medium", "large"}
+EFFORTS = {"minimal", "low", "medium", "high", "xhigh", "max"}
+
 ISSUE_URL = re.compile(r"https://github\.com/([\w.-]+/[\w.-]+)/issues/(\d+)")
 PR_URL = re.compile(r"https://github\.com/([\w.-]+/[\w.-]+)/pull/(\d+)")
 
@@ -69,6 +84,19 @@ def category(text: str | None) -> str:
 def pr_number(text: str | None) -> int | None:
     m = PR_URL.search(text or "") or re.search(r"pull request #(\d+)", text or "")
     return int(m.groups()[-1]) if m else None
+
+
+def node(name: str | None) -> tuple[str, str, bool]:
+    """(step name, role, is a repair pass). Names are engine-defined, but any that are not
+    plain identifiers become "other" so nothing free-form reaches the data."""
+    step = name if name and STEP_NAME.fullmatch(name) else "other"
+    return step, ROLES.get(step.split("__")[-1], "other"), "corrections" in step
+
+
+def enum(value, allowed: set[str] | None = None) -> str | None:
+    if not isinstance(value, str) or not ENUM.fullmatch(value):
+        return None
+    return value if allowed is None or value in allowed else "other"
 
 
 def parse_time(value) -> float | None:
@@ -172,12 +200,22 @@ def collect(db: sqlite3.Connection, loops: dict[str, dict], pool: dict, now: flo
 
     models: list[str] = []
     steps = []
-    for rid, step, created, data in db.execute(
-            "select workflow_run_id, step_name, created_at, data from remote_agent_workflow_events "
-            "where event_type = 'node_completed' order by id"):
+    starts: dict[tuple[str, str], list[float | None]] = {}  # (run, node) -> node_started times, oldest first
+    for rid, step, kind, created, data in db.execute(
+            "select workflow_run_id, step_name, event_type, created_at, data from remote_agent_workflow_events "
+            "where event_type in ('node_started', 'node_completed', 'node_failed') order by id"):
         run = runs.get(rid)
         if run is None:
             continue
+        if kind == "node_started":
+            starts.setdefault((rid, step), []).append(parse_time(created))
+            continue
+        queue = starts.get((rid, step))
+        started = queue.pop(0) if queue else None
+        if started is not None and started > (parse_time(created) or started):
+            started = None  # a start that postdates its completion paired with the wrong attempt
+        if kind == "node_failed":
+            continue  # its start is consumed so a retry of the same node pairs with its own start
         try:
             d = json.loads(data or "{}")
         except ValueError:
@@ -191,6 +229,8 @@ def collect(db: sqlite3.Connection, loops: dict[str, dict], pool: dict, now: flo
         model = ((d.get("model_usage") or {}).get("resolved")) or "unknown"
         if model not in models:
             models.append(model)
+        attempt = d.get("attempt")
+        name, role, repair = node(step)
         turns = int(d.get("num_turns") or 0)
         est = price(model, tokens, turns)
         c = est if est is not None else float(d.get("cost_usd") or 0)
@@ -199,7 +239,11 @@ def collect(db: sqlite3.Connection, loops: dict[str, dict], pool: dict, now: flo
                       "workflow": run["workflow"], "input": int(tokens.get("input") or 0),
                       "output": int(tokens.get("output") or 0), "cacheRead": int(tokens.get("cacheRead") or 0),
                       "cacheWrite": int(tokens.get("cacheWrite") or 0), "turns": turns,
-                      "seconds": round(int(d.get("duration_ms") or 0) / 1000, 1), "cost": round(c, 5)})
+                      "seconds": round(int(d.get("duration_ms") or 0) / 1000, 1), "cost": round(c, 5),
+                      "step": name, "role": role, "repair": repair, "started": started,
+                      "tier": enum(d.get("tier"), TIERS), "effort": enum(d.get("effort"), EFFORTS),
+                      "attempt": attempt if isinstance(attempt, int) and not isinstance(attempt, bool) else None,
+                      "failureKind": enum(d.get("failure_kind"))})
 
     failures = []
     for rid, step, created, data in db.execute(
@@ -213,7 +257,8 @@ def collect(db: sqlite3.Connection, loops: dict[str, dict], pool: dict, now: flo
         text = str(d.get("error") or d.get("message") or "")
         failures.append({"t": parse_time(created), "project": run.get("project"), "issue": run.get("issue"),
                          "workflow": run.get("workflow"), "kind": "run" if step is None else "step",
-                         "category": category(text)})
+                         "category": category(text), "step": None if step is None else node(step)[0],
+                         "failureKind": enum(d.get("failure_kind"))})
 
     by_task: dict[tuple[str, int], list[dict]] = {}
     for run in runs.values():
@@ -253,7 +298,7 @@ def collect(db: sqlite3.Connection, loops: dict[str, dict], pool: dict, now: flo
                        "lastUsed": parse_time(state.get("lastUsed"))})
 
     return {
-        "version": 2,
+        "version": 3,
         "generated": now,
         "projects": names,
         "weights": WEIGHTS,
