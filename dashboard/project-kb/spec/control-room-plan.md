@@ -74,7 +74,7 @@ Each project's own `factory_loop.py` writes it (see the host facts below), so th
 - `node_started` times add nothing beyond `duration_ms`: a step's start plus its duration equals its completion to within a second. Waiting time is the gap between steps and runs, not inside them.
 
 **Effort level reaches a project only after `factory.py init` reruns there.**
-At upstream's pinned Archon revision (`5674fd42`), every `node_completed` event records `tier`, `effort`, `attempt` and `failure_kind` (`packages/workflows/src/node-record-serialization.ts`).
+From Archon revision `5674fd42` (the repo's pin after PR #6; upstream has since moved to `02c96342`), `node_completed` events can record `tier`, `effort`, `attempt` and `failure_kind` (`packages/workflows/src/node-record-serialization.ts`). `failure_kind` appears only on failed steps, and `tier` and `effort` only when the step has them set.
 The repo's pin follows upstream with each sync (see `template/factory/pack.json`). The projects still run `24796870` from their last `init` (host `consumer.json`, checked 2026-10-14). That revision predates the file, so their events carry no effort (see the host facts above).
 Archon also records `model_usage.requested` (the tier); the collector reads only `model_usage.resolved`.
 
@@ -129,7 +129,7 @@ Built as `.github/workflows/upstream-sync.yml`: daily at 06:17 UTC and on demand
 
 | Path | Owner | On conflict |
 | --- | --- | --- |
-| `dashboard/`, `memory/`, `.knowledge/`, `TODO.md`, root `CLAUDE.md`, `AGENTS.md`, `AGENT-GUIDE.md`, `CONTEXT.md` | Fork | Fork wins automatically (`merge=ours` in `.gitattributes`) |
+| `dashboard/`, `memory/`, `.knowledge/`, `.github/`, `TODO.md`, root `CLAUDE.md`, `AGENTS.md`, `AGENT-GUIDE.md`, `CONTEXT.md` | Fork | Fork wins automatically (`merge=ours`, written to `.git/info/attributes` by the sync job) |
 | `template/`, `bin/`, `README.md`, `pack.json` | Upstream | Upstream wins unless the fork changed the same lines |
 | Same lines changed on both sides | Both | PR stays open, labeled, with the conflicting files listed; an agent resolves it |
 
