@@ -46,9 +46,11 @@ The Cam task "identify the upstream and grant access" is done.
 The factory repo pins an Archon revision in `template/factory/pack.json`.
 Syncing the factory repo moves that pin, so it also moves the engine.
 
-**The fork is 23 commits behind and 11 ahead, and merges clean (2026-10-14).**
-Every fork commit touches only fork-owned paths: `dashboard/`, `memory/`, `.knowledge/LANDMINES.md` and `TODO.md`.
-`git merge-tree` of `origin/main` and `upstream/main` reports no conflicts.
+**The fork merges upstream through a daily sync job (since 2026-10-15).**
+`.github/workflows/upstream-sync.yml` checks upstream every day at 06:17 UTC. Its first merge, PR #6, was started by hand.
+To see the current gap, run `git rev-list --left-right --count upstream/main...origin/main` (behind, then ahead).
+Fork commits touch only fork-owned paths: `dashboard/`, `memory/`, `.knowledge/`, `.github/`, `TODO.md` and the root agent files.
+A conflict or failed test leaves the sync PR open with a label, and no new sync starts until it is settled.
 
 **Upstream changed how the factory is scheduled.**
 Upstream PR #16 (2026-10-07) moved scheduling into Archon triggers and retired `.factory/loop.sh` and `factory-timer.service.example`.
@@ -61,7 +63,7 @@ Each project's own `factory_loop.py` writes it (see the host facts below), so th
 
 **Host facts, checked read-only on 2026-10-14.**
 
-- Recorded per step today: model (`model_usage.requested` and `.resolved`, both model names, not tiers), tokens, turns, duration, cost and structured output. `tier`, `effort`, `attempt` and `failure_kind` are absent from all 6,222 `node_completed` events: the fork's Archon pin predates them.
+- Recorded per step today: model (`model_usage.requested` and `.resolved`, both model names, not tiers), tokens, turns, duration, cost and structured output. `tier`, `effort`, `attempt` and `failure_kind` are absent from all 6,222 `node_completed` events: the projects' Archon pin predates them.
 - Node names: 54 distinct ones carry a model call, nested as `deliver__review__code`, `deliver__corrections.fix__implement` and so on. The collector's role map is keyed on the last `__` segment and was built from that list.
 - Loop state: `/root/<project>/.factory/milestone-loop.json`, written by `factory_loop.py`. JournalX's service runs `/root/journalx/harness/factory_loop.py` (777 lines). fathom's runs `/root/factory-loop/factory_loop.py` (498 lines, identical to `/root/fathom/harness/factory_loop.py`). `/root/factory-loop-next` holds a staged loop and a `swap.sh`.
 - Deploys: the fork has no GitHub workflow that deploys, and nothing on the host pulls it. The host's clone `/root/ai-software-factory` tracks the fork and sits at `e167ddc`, untouched since it was cloned. A merge to the fork's `main` changes nothing that runs.
@@ -71,11 +73,10 @@ Each project's own `factory_loop.py` writes it (see the host facts below), so th
 - Milestones: JournalX uses GitHub milestones (M1 to M7). fathom has none; its factory work is chosen by the `milestone-2` label.
 - `node_started` times add nothing beyond `duration_ms`: a step's start plus its duration equals its completion to within a second. Waiting time is the gap between steps and runs, not inside them.
 
-**Effort level probably arrives with the upstream sync.**
+**Effort level reaches a project only after `factory.py init` reruns there.**
 At upstream's pinned Archon revision (`5674fd42`), every `node_completed` event records `tier`, `effort`, `attempt` and `failure_kind` (`packages/workflows/src/node-record-serialization.ts`).
-The fork's pinned revision (`24796870`) predates that file, so its events may not carry effort; that is unverified.
+The repo's pin follows upstream with each sync (see `template/factory/pack.json`). The projects still run `24796870` from their last `init` (host `consumer.json`, checked 2026-10-14). That revision predates the file, so their events carry no effort (see the host facts above).
 Archon also records `model_usage.requested` (the tier); the collector reads only `model_usage.resolved`.
-One real `node_completed` row on the host settles what is recorded today.
 
 **The collector drops the step name.**
 It selects `step_name` and then discards it.

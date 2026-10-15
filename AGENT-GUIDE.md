@@ -7,7 +7,7 @@
 `Cameron-Fulton/ai-software-factory` is our fork of Cole Medin's `coleam00/ai-software-factory`.
 Upstream supplies the factory pack: the installer, scheduling, project context and the Archon revision pin (`template/factory/pack.json`).
 The fork adds the factory dashboard (`dashboard/`), session memory (`memory/`) and librarian housekeeping.
-Domain terms are in `CONTEXT.md`. Known landmines are in `.knowledge/APPLICABLE.md`; read it before planning or building.
+Domain terms are in `CONTEXT.md`. Known landmines are in `.knowledge/LANDMINES.md`. The generated list of those that apply here, `.knowledge/APPLICABLE.md`, exists only in the shared checkout and is never committed. Read both before planning or building.
 
 ## Path ownership
 
@@ -42,7 +42,7 @@ The sync design is phase 0 of `dashboard/project-kb/spec/control-room-plan.md`.
 | --- | --- |
 | Factory host | `build-server-us-west-2` (5.78.214.154) |
 | How the pack reaches a project | `bin/factory.py init`, rerun by hand in each enrolled project (JournalX, fathom) |
-| GitHub deploys | None: the repo has no `.github` workflows, so a push to `main` deploys nothing from GitHub |
+| GitHub deploys | None. The only workflow, `.github/workflows/upstream-sync.yml`, merges upstream into `main` and deploys nothing |
 | Dashboard | See `dashboard/AGENT-GUIDE.md` > `## Deployment` |
 
 The host's clone `/root/ai-software-factory` tracks this fork and is never pulled automatically (checked 2026-10-14).
