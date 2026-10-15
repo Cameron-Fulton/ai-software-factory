@@ -18,6 +18,8 @@ concurrency:
 
 env:
   UPSTREAM: https://github.com/coleam00/ai-software-factory.git
+  # gh in a fork checkout defaults to the parent repo (coleam00); pin every gh call to this fork
+  GH_REPO: ${{ github.repository }}
 
 jobs:
   test:
