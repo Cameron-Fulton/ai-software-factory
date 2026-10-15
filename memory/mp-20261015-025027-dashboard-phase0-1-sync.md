@@ -5,8 +5,6 @@
 
 **Context:** 2026-10-14/15 session: resolved the doc-drift audit, got Cam's six plan decisions, retired the old factory-dashboard repo, built and shipped plan phases 0 (upstream sync) and 1 (collector v3 + Compare view), and ran the first real upstream sync.
 
-**User Profile:** Cam is the owner and not a developer; wants agents to decide and execute, asks only for taste and go/no-go; dislikes being told to "watch" technical rollouts.
-
 **Entities Discussed:**
 - Cameron-Fulton/ai-software-factory — our fork (public); dashboard/ and memory/ are fork-owned, everything else tracks upstream
 - coleam00/ai-software-factory, coleam00/Archon — third-party upstreams; fetch only, never write
@@ -15,8 +13,8 @@
 - collect.py data.json v3 — steps gain step, role, repair, started, tier, effort, attempt, failureKind, all validated to names/enums/numbers
 - Role map — keyed on last `__` segment of Archon node names (implement→builder; scope/synthesize/code/tests/seams/simplify/docs/errors→reviewer; validate/await-checks→verifier; pr/merge/assess→merger; plan→planner; triage/classify→triage); `corrections` in name = repair
 - Compare view — dashboard/web compare.tsx + data-table.tsx (house table: #050E30 header, left-aligned, search, sort, column picker); Wilson/t 95% ranges; names a winner only when ranges clear and ≥5 tasks
-- Factory host build-server-us-west-2 — dashboard at /opt/factory-dashboard, served /var/lib/factory-dashboard/www, https://factory.5.78.214.154.sslip.io (basic auth)
-- Loop services — journalx-factory-loop runs /root/journalx/harness/factory_loop.py (777 lines); factory-loop (fathom) runs /root/factory-loop/factory_loop.py (498, = fathom harness copy); /root/factory-loop-next has staged loop + swap.sh
+- Factory host — runs Archon, both project loops and the dashboard; access details are in the private dev-system vault, not here
+- Loop services — JournalX and fathom each run their own copy of `factory_loop.py` on the host, at different versions; a staged replacement exists there
 - CodeRabbit — reviews every PR on the fork (Team plan, fair-use limit); Qodo removed by Cam (lapsed subscription)
 - PixelLab — avatar art service; approved, $25/month starting cap; signup needs Cam's card at phase 4
 
@@ -43,7 +41,7 @@
 - Shared checkout D:/projects/ai-software-factory parked on feat/supervisor at e167ddc with uncommitted supervisor work (INC-2026-872) and untracked CLAUDE.md/CONTEXT.md that block fast-forward to main
 
 **Lessons Learned (this session):**
-- Deleted D:\projects\factory-dashboard after checking only `git status` (ignored files hidden); its gitignored .env held the dashboard login → before deleting a folder, list ignored files too (`git status --ignored`) and move any .env first. Recovered from host /etc/factory-dashboard/login into the shared checkout root .env without printing it.
+- Deleted D:\projects\factory-dashboard after checking only `git status` (ignored files hidden); its gitignored .env held the dashboard login → before deleting a folder, list ignored files too (`git status --ignored`) and move any .env first. Recovered from the host's copy without printing it.
 - `gh pr create` in a clone with an `upstream` remote targets the PARENT repo (coleam00) → always pass `--repo` or set `GH_REPO` on every gh call in fork clones and workflows.
 - Merged PR #4 before CodeRabbit finished; it cannot review closed PRs → wait for CodeRabbit's review on every fork PR before merging.
 - Running upstream's tests in a job holding a write token lets third-party code push to the fork → run untrusted repo code only in read-only jobs with persist-credentials false.
@@ -56,4 +54,4 @@
 - Dashboard phases 2-6 (live feed, control panel, avatars, 3D board, scoring) per dashboard/project-kb/spec/control-room-plan.md
 - Experiment runs (3/project/week) to answer Fable/Haiku/Opus+Haiku hypotheses
 - Shared checkout cleanup: land or drop feat/supervisor work, move untracked CLAUDE.md/CONTEXT.md aside, return tree to main
-- Background sessions 8685365b, e3a6c496, 967f0ba8 (workx/v1.link) — check with `claude logs <id>`; carried from parent packet
+- Background sessions from the parent packet (workx, v1.link) — check them with `claude logs <id>`

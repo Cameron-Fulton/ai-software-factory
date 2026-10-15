@@ -30,7 +30,7 @@
   **Quote:** "**The fork is 23 commits behind and 11 ahead, and merges clean (2026-10-14).**"
   **Evidence:** The first sync run merged upstream as PR #6 (2026-10-15). `git rev-list --left-right --count <coleam00 main>...origin/main` returned `0 20`.
   **Why it matters:** The plan reads as if the fork still lags upstream. Phase 0's "done when" condition, the fork level with upstream, is now met for the repository part.
-  **Suggested resolution:** Mark the fork as level with upstream since 2026-10-15, kept level daily by the sync workflow.
+  **Suggested resolution:** Mark the fork as level with upstream since 2026-10-15, with a daily sync attempt; a conflict or failed test leaves a labeled PR and stops the fork from staying level.
 
 - **Importance:** MEDIUM
   **Classification:** DRIFT
