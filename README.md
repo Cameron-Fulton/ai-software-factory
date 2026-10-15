@@ -46,10 +46,13 @@ Archon source, including the shared workflows; you do not need to check out Arch
 or merge its PRs yourself.
 
 **Current status:** the default pins exact Archon revision
-`a02b9ab6bc59f4aff6cae8bfca4723b3eadadb28`, whose SDLC pack supports grounded
-intake, reviewed delivery, scoped validation reuse, independent runtime and holdout
-verification, bounded repair, discovery handling, merge queues and deterministic
-deployment. Native live acceptance remains separate from installation readiness.
+`5674fd428432a0f4678887555f8e2fdc8a7d01fd` on the `factory/sdlc-on-dev` branch (Archon
+dev plus the SDLC pack's factory workflows). Its pack supports dependency-aware intake,
+reviewed delivery, scoped validation reuse, runtime and optional holdout verification,
+bounded repair, discovery handling, a merge queue that reads required checks and protected paths and seals its plan by script,
+deterministic deployment, closing the worked issue once its pull requests are confirmed
+merged, tolerance for byte-order marks and unescaped Windows paths in agent-written JSON, and scheduling through Archon native triggers. The pin and
+`pack.json` must name the same revision.
 
 ---
 
@@ -82,8 +85,9 @@ on a server, run the installation and configuration there over SSH.
 The installer writes the factory and project templates and installs the pinned
 Archon source. It preserves project configuration on upgrades. It does not configure
 provider authentication, change model tiers or start a schedule.
-It also adds one pointer to `factory/WORKFLOW_POLICY.md` in the project's native
-`AGENTS.md` without replacing existing guidance. That policy supplies the
+It also adds one pointer to `factory/WORKFLOW_POLICY.md` in the project's root
+`engineering.md`, the conventions file the shared workflows read, without replacing
+existing guidance. That policy supplies the
 factory-specific bootstrap, runtime, review and state-label requirements that the
 general-purpose shared workflows intentionally do not assume.
 
@@ -260,19 +264,65 @@ python factory/consumer.py halt
 
 `halt` blocks new launches and continuations. Cancel an active run explicitly;
 `unhalt` allows launches again. Runtime-host runs stay in the foreground.
+`pause` only stops the timer from starting laps: it keeps waking runs that wait on CI,
+and explicit `run` commands still launch. `unpause` resumes scheduled launches. Use it
+instead of disabling the host timer, which would leave an in-flight lap paused forever.
 
 After the first successful lap, ask your agent to configure
-`.factory/schedule.json` with a shared workflow and its inputs.
-`python factory/consumer.py tick` submits one whole workflow.
-`bash .factory/loop.sh` repeats it, every five minutes by default.
+`.factory/schedule.json` with a shared workflow and its inputs, then:
+
+```bash
+python factory/consumer.py schedule install            # writes .factory/trigger.json, prints the timer
+python factory/consumer.py schedule install --apply    # also registers the OS timer
+python factory/consumer.py schedule status             # Archon's trigger receipts
+python factory/consumer.py schedule remove --apply     # unregisters the timer
+```
+
+Scheduling is Archon's. `schedule install` writes an Archon trigger binding for the
+scheduled workflow. Each timer tick runs `python factory/consumer.py schedule fire`,
+which calls `archon trigger fire` and then `archon workflow wake`:
+
+- Archon admits the start on one resource per repository and workflow, so laps never
+  overlap. A tick that arrives while a lap runs is skipped; the next tick starts the next
+  lap, so ticks never pile up behind a long lap.
+- `workflow wake` resumes runs paused on a pending CI check or a provider usage limit.
+
+On macOS Archon installs its own launchd jobs. On Windows the timer is a hidden Task
+Scheduler task that runs `pythonw` (no console window) only while you are logged on, and
+writes each tick's output to `.factory/schedule.log`. On Linux it is a systemd user timer.
+`halt` makes `schedule fire` start nothing.
+`schedule install` refuses a `runtime_host` entry, because a trigger cannot wrap the
+runtime host. Run the host as its own service instead (`python factory/runtime_host.py
+serve`) and point the scenarios at its connection file.
+
+**Merge policy.** Free private GitHub repositories cannot report branch protection, so
+the merge queue needs the project to say which CI checks a merge requires. Set
+`required_checks` in `harness/harness.config.json` to the CI job names (for example
+`"tests"`), or to `"none"`. The factory passes it to `archon-lifecycle` and
+`archon-merge-queue`. Left empty, the merge queue reads GitHub, and on a free private
+repository it holds every PR with a reason that names this setting.
+
+**Protected paths.** Review does not reliably notice an agent editing the files that
+govern it (a reviewed delivery once rewrote `engineering.md` and merged). Set
+`protected_paths` in `harness/harness.config.json` to comma-separated path patterns,
+anchored at the repository root (`*` within one segment, `**` across segments, a
+trailing `/` for a directory). The factory passes it to `archon-lifecycle` and
+`archon-merge-queue`, whose `path-policy` script lists each PR's changed files and
+holds any PR that touches a match, with a comment naming the files and saying a human
+must make that change. New installs protect `MISSION.md`, `FACTORY.md`,
+`FACTORY_RULES.md`, `harness/**`, `.factory/**` and `factory/**`; add the project's
+own governance documents. An existing project's harness configuration is never
+overwritten, so add the key by hand.
 
 The scheduler never selects work itself. Backlog intake lives in the shared
 lifecycle: with an empty `target` and `publish=true`, each run takes the oldest
 open issue with none of the factory's configured state labels and no open PR naming
-it; a run that finds nothing completes with nothing to do. The consumer supplies
+it and no open `Depends on: #n`. A run that finds nothing completes with nothing to
+do, and its `waiting_on` names the open dependencies the backlog is stuck behind. The
+consumer supplies
 the factory state-label mapping to triage, ship and lifecycle. An explicit
 `--input state_labels={}` or scheduled `"state_labels": {}` disables that default.
-A fixed `target` repeats that same target every tick.
+A fixed `target` repeats that same target on every tick.
 
 Publication remains opt-in. A supervised schedule can label intake while leaving
 merge approval gated and discoveries read-only:
@@ -327,25 +377,25 @@ to install the toolchain, then help with GitHub and provider sign-in. Run the
 installer in the application repo on that server.
 
 Watch one issue become a PR, verify the running app, and approve its merge before
-starting a persistent loop or OS timer. The service needs the same tool paths and
-authentication as the successful manual run. Installation does not start it for you.
+installing the timer. The timer needs the same tool paths and authentication as the
+successful manual run. Installation does not start it for you.
 
-**As a systemd service.** `init` installs `factory/factory-timer.service.example`;
-fill in the three placeholders and enable it. Three things the manual run had that a
-root service does not get on its own, and the example sets each of them:
+**The timer on Linux.** `schedule install` prints a systemd user service and timer,
+and `--apply` writes and enables them. They carry what a manual run had and a timer
+does not get on its own:
 
-- `HOME`: git's credential helper (`gh`) and Archon's `~/.archon` are found through it.
-- `PATH`: `bun`, `uv` and `claude` live under the user's home, not `/usr/bin`.
+- `PATH`: `bun`, `uv` and `claude` live under the user's home, not `/usr/bin`. It is
+  captured from the shell that ran `schedule install`.
 - `IS_SANDBOX=1`: Claude Code refuses to run unattended as root without it.
+- `EnvironmentFile=-%h/.factory-env`: keep the Claude Code token in this mode-600 file,
+  never in the unit or the repository.
 
-Keep the Claude Code token in a mode-600 file the service sources (the example
-uses `~/.factory-env`), never in the unit or the repository. Each tick is one whole
-shared workflow; the loop waits `FACTORY_INTERVAL_SECONDS` after a tick ends before
-launching the next, so ticks never overlap. Stop it with `systemctl disable --now
-factory-timer` or `python factory/consumer.py halt`.
+A root user timer needs `loginctl enable-linger root` to keep running after logout.
+Stop launching new laps with `python factory/consumer.py halt`, or remove the timer
+with `schedule remove --apply`.
 
-If a run pauses on a pending GitHub check, `python factory/consumer.py resume
-<run-id>` continues it once the check concludes; the CLI does not resume it for you.
+A run paused on a pending GitHub check resumes on the next tick, through
+`archon workflow wake`.
 
 Deployment is project-specific: the setup agent wires the service (systemd, a
 reverse proxy, DNS) and gives the lifecycle its `deploy`, `health` and `identity`
@@ -385,14 +435,12 @@ bin/factory.py                install and CLI entry point
 template/                    what init copies into your repo
   factory/consumer.py        invokes shared Archon workflows and shows their state
   factory/pack.json          shared source revision and required workflows
-  factory/WORKFLOW_POLICY.md factory requirements read through native AGENTS.md
+  factory/WORKFLOW_POLICY.md factory requirements read through engineering.md
   factory/RUNTIME_HOST.md    app startup and runtime scenario configuration
-  factory/factory-timer.service.example   the timer as a systemd service
   harness/                   project checks and END-TO-END.md
 docs/first-hour.md            what to do after setup
 docs/server-cheat-sheet.md    every prompt for a server install, in order
 docs/incidents.md             historical failures and lessons
 ```
 
-Upgrading an older factory? See the [migration guide](template/factory/MIGRATION.md)
-for retired commands and configuration.
+To upgrade an installed factory, see [`factory/MIGRATION.md`](template/factory/MIGRATION.md).

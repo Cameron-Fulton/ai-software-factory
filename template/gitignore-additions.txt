@@ -3,8 +3,12 @@ __pycache__/
 *.pyc
 *.pyo
 .factory/consumer.json
-.factory/retired/
+.factory/backup/
 .factory/STOP
+.factory/PAUSE
+.factory/schedule.log
+.factory/schedule-task.xml
+.factory/trigger.json
 harness/.results/
 .factory/holdout/.results/
 .env
