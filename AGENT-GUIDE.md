@@ -23,6 +23,8 @@ Domain terms are in `CONTEXT.md`. Known landmines are in `.knowledge/APPLICABLE.
 `coleam00/ai-software-factory` and `coleam00/Archon` are not ours.
 Only fetch from them. Never push, open a pull request, file an issue or comment there.
 Every write goes to `Cameron-Fulton/ai-software-factory` on a feature branch through a pull request; never push to `main`.
+CodeRabbit reviews every pull request here; wait for its review and settle any blocking finding before merging your own.
+With an `upstream` remote present, `gh` defaults to the parent repo, so pass `--repo Cameron-Fulton/ai-software-factory` (or set `GH_REPO`) on every `gh` call.
 
 A clone that syncs needs an `upstream` remote whose push URL is disabled:
 
