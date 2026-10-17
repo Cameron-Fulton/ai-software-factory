@@ -3,8 +3,10 @@
 Status: plan, not built. Written 2026-10-17 with the `converge` method
 (`D:/projects/dev-system/skills/synced/*/converge/SKILL.md`): one objective, a
 capability table with its gaps, the data model, the cut, a build order by dependency,
-and the owner decisions. It lives beside `control-room-plan.md`, the other
-factory-wide plan, because the fork has no other fork-owned home for plans.
+and the owner decisions. A cold `god-developer` audit on the same day found six blocking
+errors in the first draft; this version corrects them. It lives beside
+`control-room-plan.md`, the other factory-wide plan, because the fork has no other
+fork-owned home for plans.
 
 ## The objective
 
@@ -16,23 +18,33 @@ Owner's words, 2026-10-16: "I need the AI Factory continually building,
 monitoring/auditing and adding issues/tasks that are then automatically completed and
 the cycle of self-improvement and optimization and self-healing continues 24/7", done
 "system wide so the other projects using AI Factory get the update from OUR fork."
+On 2026-10-17 the owner added SearchActions/fathom-spider to the factory, so that
+fathom #614 gets built.
 
 ## What exists today
 
 Four separate things do parts of this.
 
-- **The JournalX loop**: `journalx/harness/factory_loop.py`, about 1,000 lines. It runs
-  from the project checkout and updates itself from JournalX `main`. It takes issues
+- **The JournalX loop**: `journalx/harness/factory_loop.py`, 1,038 lines. It runs from
+  the project checkout and updates itself from JournalX `main`. It takes issues
   labelled `factory`, and the backlog sync applies that label once an issue's
   dependencies close.
 - **The Fathom loop**: `fathom/harness/factory_loop.py` plus `scrutiny.py`. The service
   runs a hand-installed copy in `/root/factory-loop/`, so nothing updates it by itself.
   Since 2026-10-17 it takes every open issue filed by someone with push access, lowest
   milestone first.
-- **Upstream `archon-loop` and `archon-manager`**, at the fork's pin `5fa0a816`. They
-  are not installed anywhere.
+- **Upstream `archon-loop` and `archon-manager`**, at the fork's default pin `5fa0a816`
+  (upstream branch `factory/sdlc-on-dev`). They are not installed anywhere.
 - **The dashboard** (`dashboard/`). It reads both loops' `milestone-loop.json` and
   the engine database.
+
+The engines the loops call are our own Archon fork, `Cameron-Fulton/Archon`:
+
+- JournalX runs `e2799053`. That is our login-rotation patch on branch
+  `base/sdlc-24796870`.
+- Fathom runs `31d0021`, our required-checks-only fix on top of that rotation patch.
+
+Both projects' committed `factory/pack.json` still says `24796870`.
 
 The two loops started as one file and have been patched separately ever since. Every
 fix made in 2026-10 had to be written twice, and Fathom was a week behind until
@@ -45,10 +57,11 @@ One row per step of the cycle. **Gap** means nothing does it.
 | Step | JournalX loop | Fathom loop | archon-loop / manager @5fa0a816 |
 |---|---|---|---|
 | Take every open issue, keep up with new ones | label + backlog sync | yes (2026-10-17) | yes, skips `needs-owner` |
-| Respect `Depends on` | backlog sync labels | triage BLOCKED waits | yes |
+| Respect `Depends on` | backlog sync, JX ids only | triage BLOCKED waits | yes, same repository |
 | Several laps at once | no | no | yes (claims) |
 | Build, review, merge with main, repair | yes, 3 laps | yes, 3 laps | yes, 3 attempts |
 | Hand open review threads to the repair | yes | yes | reads comments, resolves none |
+| Read the merge queue's real hold reason | yes (journalx PR 209) | yes (fathom PR 762) | n/a |
 | Re-run checks the engine blamed on the environment | yes | yes | **gap**: the attention wait is never woken |
 | Act on triage's decline (close, amend, decide, wait) | yes | yes | partly |
 | Recover a run cut off by a restart | yes | yes | claim expiry after 6 hours |
@@ -56,7 +69,7 @@ One row per step of the cycle. **Gap** means nothing does it.
 | Agent scrutiny of database, CI and Worker changes | n/a | yes | **gap** |
 | Hold files that can reach the signing key | yes, mechanical | n/a | prompt only |
 | Test-count-only workflow edits merge | yes | n/a | **refused**: counts drift low |
-| Rotate across the six subscription logins | yes (engine pin) | yes (engine pin) | **gap**: rotation removed from the engine |
+| Rotate across the six subscription logins | yes (our engine patch) | yes (our engine patch) | **gap**: our patch is not on that branch |
 | Audit the project and file new issues | **gap** | **gap** | manager: holdout failures, red main, repeated fixes, at most 5 a pass |
 | Improve the factory itself from its own failures | **gap** | **gap** | **gap** |
 | Ship a loop fix to every project from one place | **gap** (per project) | **gap** (hand copy) | the pin, but nothing advances it on the host |
@@ -64,17 +77,17 @@ One row per step of the cycle. **Gap** means nothing does it.
 | Work an issue that needs two repositories | **gap** | **gap** | **gap** |
 | Tell the owner | Slack | Slack | a GitHub issue |
 
-Sources: the gap analysis of 2026-10-17 (session `62d0779b`), which cites every row to
-file and line. Its two load-bearing findings:
+Sources: the gap analysis and the plan audit of 2026-10-17 (session `62d0779b`), which
+cite every row to file and line. Two findings carry the decision below:
 
-1. At `5fa0a816` the engine no longer rotates across the subscription logins.
-   `account-pool.ts` and `ARCHON_CLAUDE_ACCOUNTS` are absent under
-   `packages/providers/src/claude/`. That rotation is how six subscriptions run one
-   factory without paying for usage, so moving to that pin today would stall the
-   factory at the first usage limit.
-2. archon-loop has none of Fathom's scrutiny floors. Those floors stop a schema change
-   that drops data, a weakened CI workflow, and a faked required check. Fathom deploys
-   on merge.
+1. **Login rotation is ours, not upstream's.** It is the patch `e2799053`
+   ("Rotate Claude steps across a pool of subscription accounts (#4)") on
+   `Cameron-Fulton/Archon`. It is not on any upstream branch, so no upstream pin will
+   ever bring it. That rotation is how six subscriptions run the factory without paying
+   for usage. A pin without it stalls the factory at the first usage limit.
+2. **archon-loop has none of Fathom's scrutiny floors.** Those floors stop a schema
+   change that drops data, a weakened CI workflow, and a faked required check. Fathom
+   deploys on merge.
 
 ### What the empty rows mean
 
@@ -89,19 +102,20 @@ file and line. Its two load-bearing findings:
 ## Decision: one loop, owned by the fork, not archon-loop yet
 
 We keep our loop and make it the only one. It moves into the fork at a new fork-owned
-path, `loop/`. Every project runs that one copy. We do not move to `archon-loop` while
-the engine lacks login rotation and the Fathom floors. The fork's TODO line that says
-"move both projects onto archon-loop" is replaced by this plan.
+path, `loop/`. Every project runs that one copy. The fork's TODO line that said "move
+both projects onto archon-loop" is replaced by this plan.
 
-**Revisit when** a pin that contains `archon-loop` also rotates logins. The check is
-the gap table above, rerun against the new pin. `TODO.md` keeps that line.
+**Revisit when both of these are true:**
+
+- our rotation patch is ported onto a `Cameron-Fulton/Archon` branch at a pin that has
+  `archon-loop`
+- Fathom's scrutiny floors exist as an `archon-loop` gate
+
+The check is the capability table above, rerun against that branch. `TODO.md` keeps
+that line.
 
 **Why the fork and not a project.** This is the owner's "from our fork". It is also
 the only repository whose job is the factory.
-
-`loop/` is a fork-only path, like `dashboard/`. Upstream never touches it, so the daily
-upstream sync never conflicts on it. Step 1 declares it in a root `PROJECT-LAYOUT.json`
-and in `AGENT-GUIDE.md`'s ownership table.
 
 ## The data model
 
@@ -112,7 +126,9 @@ One model replaces it.
 ### Project
 
 What the loop needs to know about one enrolled repository. Its home is
-`harness/loop.config.json` in that project, so the project owns its own rules.
+`harness/loop.config.json` in that project. The loop reads it from `origin/main`,
+never from the working tree. The file matches its own `held` patterns, so a task can
+never loosen the rules it is judged by.
 
 | Field | Meaning |
 |---|---|
@@ -122,15 +138,20 @@ What the loop needs to know about one enrolled repository. Its home is
 | `held` | path patterns that only the owner merges |
 | `count_only` | workflow files where a raised test count may merge |
 | `fact_sections` | headings in the instruction files that may change |
-| `gated` | surfaces that need scrutiny: `data`, `controls`, `workers` |
+| `gated` | named surfaces, each with its own path patterns and reviewer lenses |
 | `required_checks` | the CI job names that must pass, and their workflow file |
+
+Gated surfaces are named per project with their own paths. Fathom's `data` paths
+(Prisma and ClickHouse) mean nothing in Spider. Spider names its own: the importer and
+every ClickHouse write path.
 
 ### Task
 
-Identity is `(repo, issue)`. An issue number alone collides across repositories, and
-that is the identity trap the cross-repository row exposes. A task owns a list of pull
-requests, and each one is identified by `(repo, number)`. So one Fathom issue can own a
-Fathom PR and a Spider PR.
+- **Identity:** `(repo, issue)`. An issue number alone collides across repositories.
+- **Pull requests:** a task owns pull requests in its own repository only.
+- **Cross-repository work:** one issue per repository, linked by
+  `Depends on: owner/repo#n`. A parent issue lists its children as `(repo, issue)`
+  references and closes when all of them close as completed.
 
 Fields:
 
@@ -139,130 +160,187 @@ Fields:
 - counters: `repairs`, `failures`, `readmits`, `ci_reruns`, `waits`
 - `run` and `lap`, for the run in flight
 - `stop`, set only while blocked
+- `children`, on a parent only
 
 ### Stop
 
 | Field | Meaning |
 |---|---|
-| `kind` | `retryable` (ran out of laps or steps), `owner` (held file, owner decision), or `foreign` (a PR the factory does not own) |
+| `kind` | `retryable` (ran out of laps or steps), `owner` (held file, an owner decision MISSION.md reserves), or `foreign` (a PR the factory does not own) |
 | `reason` | plain-language text |
 
 Only `retryable` stops are taken up again by themselves.
 
+### Scenarios the model was tested against
+
+| Situation | What the model does |
+|---|---|
+| An issue is reopened after it was done | A new task revision with the same identity. The old history is kept. |
+| A repository is renamed or transferred | `repo` is read from `loop.config.json`. GitHub redirects the old URLs. The state file is converted once. |
+| The loop restarts mid-lap | `lap` and `run` survive. The run is settled or abandoned and run again (existing behavior). |
+| Two issues in different repositories share a number | Distinct, because identity includes `repo`. |
+| A child issue is closed as not planned | The parent stays open and gets a `stop` of kind `owner`. |
+| The dashboard asks what a task looked like yesterday | Not answerable today. The state file holds only the latest state. The engine database keeps run history. Point-in-time task history is out of the cut. |
+
 ### Where it lives
 
-`.factory/loop-state.json` in each project, written atomically under the existing
-`flock`. The schema lives once, in `loop/state.schema.json`. The loop and the dashboard
-collector both validate against it. A test fails when the two disagree.
-
-The dashboard reads `loop-state.json` and still reads old `milestone-loop.json` files
-until every project has moved.
+`.factory/loop-state.json` in each project, written atomically under the existing lock
+file `.factory/milestone-loop.lock`, so old and new code exclude each other. The schema
+lives once, in `loop/state.schema.json`. The loop and the dashboard collector both
+validate against it, and a test fails when the two disagree.
 
 ## The cut for version one
 
 **In:**
 
 - one loop in `loop/`, with project policy in `harness/loop.config.json`
-- scrutiny as an optional gate, for any project whose config lists `gated` surfaces
+- scrutiny as an optional gate per named surface
+- release folders and one updater for rollout
 - one systemd template unit, `factory-loop@<project>.service`
-- self-update from the fork
-- the auditor
+- the auditor, with a circuit breaker
 - the self-improvement pass
 - Spider enrolled
-- cross-repository tasks through `Depends on: owner/repo#n` between per-repository issues
+- cross-repository dependencies and parent closing
 
 **Out, and why:**
 
 - **Parallel laps.** The six logins already run out between resets. More laps would
   only spend them faster.
-- **Moving to archon-loop.** It is a regression on the four highest-stakes guards.
+- **Moving to archon-loop.** See the decision above.
 - **A new notification channel.** Slack works today.
-- **Changing the engine pin.** JournalX runs `e2799053`, Fathom runs `31d0021`, both
-  from `Cameron-Fulton/Archon`. Unifying them is its own task, and nothing in this plan
-  depends on it.
+- **Changing the engine pin.** Nothing in this plan depends on it.
+- **Point-in-time task history.** Run history is in the engine database. Nobody has
+  asked for task history.
 
 ## Build order
 
-Each step names what it unblocks. Each is its own branch, in its own worktree under
-`D:/projects/.worktrees/<repo>/<lane>`, and merges through a pull request.
+Each step names what it unblocks. Each is its own `feat/` or `fix/` branch, in its own
+worktree under `D:/projects/.worktrees/<repo>/<lane>`, merged through a pull request
+after CodeRabbit's review.
 
 ### 0. Reconcile what is open first (operating rule 15)
 
-- The shared fork checkout `D:/projects/ai-software-factory` sits on `feat/supervisor`.
-  It has untracked `bin/supervisor.py`, which carries INC-2026-872, plus `CLAUDE.md`,
-  `CONTEXT.md` and `lifecycle/`. Land or drop the supervisor work, then return that
-  tree to `main` (TODO.md says how).
-- Record the pins actually running: JournalX `e2799053`, Fathom `31d0021`. The
-  committed `factory/pack.json` in both projects says `24796870`.
+- The shared fork checkout `D:/projects/ai-software-factory` sits on `feat/supervisor`,
+  with untracked `bin/supervisor.py` (INC-2026-872), `CLAUDE.md`, `CONTEXT.md` and
+  `lifecycle/`. `bin/` is upstream-owned, so the supervisor either moves into `loop/` in
+  step 1 or is dropped. Then return that tree to `main`, following TODO.md.
+- The host's fork clone `/root/ai-software-factory` is 59 commits behind. Set
+  `git config pull.ff only` there and fast-forward it.
 
 Unblocks: every later fork change starts from a clean `main`.
 
-### 1. The shared loop in the fork
+### 1. The shared loop and its protection in the fork
 
-Merge the JournalX loop, the Fathom loop and `scrutiny.py` into `loop/`:
+1. **Declare the new path.** Add a root `PROJECT-LAYOUT.json` home and an
+   `AGENT-GUIDE.md` ownership row for `loop/`.
+2. **Keep upstream out of the judge.** In `.github/workflows/upstream-sync.yml`:
+   - add `loop/**` and `/PROJECT-LAYOUT.json` to the keep-our-side lists
+   - refuse to merge the sync PR by itself when the upstream diff touches either
+3. **Fork CI.** Add a fork CI workflow that runs the `loop/` tests on every pull
+   request. A test forbids `loop/` from importing anything under `bin/` or `template/`.
+4. **Merge the loops.** Combine the JournalX loop, the Fathom loop and `scrutiny.py`
+   into `loop/`:
+   - `factory_loop.py`
+   - `scrutiny.py` and `scrutiny_prompts/`
+   - `state.schema.json`
+   - the union of both test suites, every test kept
+5. **Move project rules into config.** Everything project-specific goes into
+   `harness/loop.config.json`:
+   - JournalX's held list and the count-only and fact-section exceptions
+   - Fathom's gated surfaces, required checks and check provenance
 
-- `factory_loop.py`
-- `scrutiny.py` and `scrutiny_prompts/`
-- `state.schema.json`
-- tests that are the union of both suites, with every test kept
-
-Everything project-specific moves into `harness/loop.config.json`:
-
-- JournalX's held list and the count-only and fact-section exceptions
-- Fathom's gated surfaces, required checks and check provenance
-
-The two current configs must reproduce each loop's behavior exactly. A test runs both
-configs through the old fixtures.
+   A test runs both configs through the old fixtures and must reproduce each loop's
+   behavior exactly.
 
 Unblocks: steps 2 to 7.
 
-### 2. Install and cut over on the host
+### 2. Install, cut over, and keep the dashboard reading
 
-1. Install from the host's fork clone `/root/ai-software-factory`, which is
-   fast-forward only. Run the tests on the host, then copy into `/root/factory-loop/`.
-2. Add one template unit, `factory-loop@.service`, with `KillMode=control-group`.
-   Keep the `needrestart` exclusion and widen it to the new unit name.
-3. Cut over JournalX first, then Fathom. For each project:
+1. **One updater, release folders.** A single updater unit fetches fork `main` into the
+   host clone and runs the `loop/` tests there. When they pass, it copies `loop/` into
+   `/root/factory-loop/releases/<commit>` and swaps the symlink
+   `/root/factory-loop/current` in one step. Each loop instance runs from `current` and
+   re-executes between laps when the symlink target changes. No loop ever fetches, and
+   no file changes under a running lap. That matters because scrutiny reads its prompts
+   at call time.
+2. **Leave Fathom's live copy alone.** `/root/factory-loop/factory_loop.py` stays
+   untouched until Fathom is cut over.
+3. **Template unit.** Add `factory-loop@.service` with `KillMode=control-group`, running
+   `/root/factory-loop/current/factory_loop.py --project <name>`. Widen the
+   `needrestart` exclusion to it.
+4. **Dashboard first.** The collector reads `loop-state.json` and the old
+   `milestone-loop.json` side by side, so the page never goes stale.
+5. **Cut over JournalX first, then Fathom after one clean JournalX day.** For each
+   project:
    1. touch `.factory/STOP`
    2. wait until no `consumer.py` child is running
-   3. convert `milestone-loop.json` to `loop-state.json` with a one-time script
-   4. start the new unit and stop the old one
-   5. watch one full lap
-4. Then delete `harness/factory_loop.py` from both projects, through a pull request in
-   each (Rule 23).
+   3. `systemctl disable --now` the old unit
+   4. convert `milestone-loop.json` into `loop-state.json` and keep the original file
+   5. remove `STOP`
+   6. `systemctl enable --now factory-loop@<project>`
+   7. watch one full lap
+
+   Rollback is the reverse: disable the new unit and enable the old one. The old code
+   and the original state file stay in place until that lap passes.
+6. **Project checkouts keep advancing.** The shared loop keeps JournalX's fast-forward
+   of each project checkout between laps (today's `self_update`, pointed at the project
+   rather than the loop).
+7. **Retire the old loops.** After both cutovers, delete `harness/factory_loop.py`
+   from both projects, each through its own pull request (Rule 23). Update
+   `fathom/CLAUDE.md` line 158 and `fathom/docs/runbooks/factory-loop.md`, and
+   `journalx/CLAUDE.md`'s factory section, in the same pull requests.
 
 Unblocks: one code path for every later change.
 
-### 3. Self-update from the fork
+### 3. Rollout order for every later loop change
 
-Between ticks, the loop fast-forwards `/root/ai-software-factory` to fork `main`. It
-runs `loop/` tests on the host and re-executes into the new code only when they pass.
-That is JournalX's existing self-update, pointed at the fork and with a test gate added.
+The updater installs a new release for JournalX first. Fathom moves to it only after
+JournalX has run one full lap on it. That is a per-project `release` pointer, advanced
+by the updater.
 
-Unblocks: "the other projects get the update from our fork", with nobody copying files.
+Unblocks: "the other projects get the update from our fork", with nobody copying files
+and Fathom never first.
 
-### 4. Enroll Spider and build fathom #614
+### 4. Enroll Spider
 
 1. Clone `SearchActions/fathom-spider` to `/root/fathom-spider`.
-2. Run `bin/factory.py init` at Fathom's pin `31d0021`.
-3. Write `MISSION.md`, the harness config (required check: the job in `ci.yml`) and
-   `harness/loop.config.json`. The `gated` field gets `data`, because the importer
-   writes to Fathom's stores.
-4. Start `factory-loop@fathom-spider`.
-5. Add Spider to the dashboard collector.
-6. Split #614 by repository:
+2. Run `init` from a fork tree at commit `e167ddc`, whose `pack.json` still pins
+   `24796870`, with:
+   - `--source https://github.com/Cameron-Fulton/Archon`
+   - `--revision 31d0021eb6a54cd8b2253dc77b296c557dfabe3b`
+
+   The current fork template names `archon-loop` and `archon-manager`, which do not
+   exist at `31d0021`, so `doctor` would fail. This needs the full SHA and our source,
+   which is the one with rotation.
+3. Write `MISSION.md`, and set the harness config's `required_checks` to all three jobs
+   in `ci.yml`.
+4. Write `harness/loop.config.json`. Spider's gated surface is the importer and every
+   ClickHouse write path, with the security and data lenses.
+5. Start `factory-loop@fathom-spider`. Add Spider to the collector.
+
+Unblocks: every future Spider issue.
+
+### 5. Cross-repository work, then fathom #614
+
+1. Build `Depends on: owner/repo#n` into intake: a task waits until every named issue
+   is closed as completed.
+2. Build the parent rule: a parent closes when its children all close as completed.
+   It gets an `owner` stop if any child closes as not planned.
+3. Read `packages/crawler/src/bin/sync-crawl-to-fathom.ts` and the Fathom side. The
+   importer writes to ClickHouse directly. From that, write the split:
    - a Fathom issue for the authoritative site-identity lookup the importer will call
-   - a Spider issue for the importer check, with `Depends on: SearchActions/fathom#<n>`
-   - #614 stays open as the parent, and the loop closes it when both children close
-7. Remove #614's `archon-blocked` label only once both child issues exist. Its own
-   text sets that condition.
+   - a Spider issue for the importer check, depending on it
 
-First, read `sync-crawl-to-fathom.ts` and the Fathom side it writes to. That fixes the
-exact contract before the issues are written.
+   Both carry #614's acceptance checks.
+4. **#614 is an access boundary in an app that deploys on merge.** Its own release
+   condition asks for independent review of that boundary. Fathom's gated surfaces get
+   an `access` surface with the security lens, and the Fathom child goes through it.
+5. #614 stays `archon-blocked` as the parent and is never taken itself. The parent rule
+   closes it.
 
-Unblocks: every future Spider issue, and the cross-repository pattern.
+Unblocks: #614, and the pattern for any later two-repository issue.
 
-### 5. The auditor
+### 6. The auditor
 
 A daily lap per project, run as a scheduled step of the same loop, so it shares the
 login rotation. It reads:
@@ -271,58 +349,61 @@ login rotation. It reads:
 - its incident and landmine notes
 - the dashboard's failure categories for that project
 
-It files at most 5 new issues per day per project. They are authored by the loop's own
-account, so intake trusts them, and they carry the label `factory-found` with
-acceptance checks. Before filing, it searches open and recently closed issues and does
-not file a duplicate.
+It files at most 5 new issues per day per project, authored by the loop's own account
+so intake trusts them. Each carries the project's intake label (JournalX: `factory`)
+plus `factory-found`, and has acceptance checks. Before filing, it searches open and
+recently closed issues and does not file a duplicate.
+
+**Circuit breaker:** it files nothing while more than 10 `factory-found` issues are
+open in that project, or while more than a third of the last 10 it filed ended
+blocked.
 
 Unblocks: the factory finds its own work.
 
-### 6. The self-improvement pass
+### 7. The self-improvement pass
 
-A weekly lap on the fork itself. It reads the dashboard's failure categories across all
-projects and files issues against the fork for recurring causes, the way October's six
+A weekly lap on the fork. It reads the dashboard's failure categories across all
+projects and files issues against the fork for recurring causes, the way October's
 stop causes were found by hand.
 
-The fork is enrolled like any project, with `loop/` held, because the loop is the judge.
-See decision 1 for whether that hold can relax.
+To build those issues, the fork is worked from its own host checkout,
+`/root/factory-self`. It has the factory files installed and excluded through
+`.git/info/exclude`, not `init`, because `init` appends to the upstream-owned
+`.gitignore`. It must never be the clone the updater reads from. `loop/` is held there
+(see decision 1).
 
 Unblocks: self-healing that does not depend on a person noticing.
 
-### 7. The dashboard reads the new state
-
-- `loop-state.json` across all enrolled projects
-- the auditor and self-improvement counts
-
-Unblocks: the owner can see the whole system on one page.
-
 ## Git rules every step follows
 
-- One worktree and one branch per change, under `D:/projects/.worktrees/<repo>/<lane>`.
-  Never `git switch` a shared checkout.
+- One worktree and one `feat/` or `fix/` branch per change, under
+  `D:/projects/.worktrees/<repo>/<lane>`. Never `git switch` a shared checkout.
 - Stage files by explicit path.
 - Check `git remote -v` before any push.
-- Fork pull requests always pass `--repo Cameron-Fulton/ai-software-factory`, because
-  the `upstream` remote otherwise makes `gh` target Cole's repository. Never push,
-  open pull requests or comment upstream.
-- Never edit upstream-owned fork paths (`bin/`, `template/`, `docs/`, `README.md`).
-  New fork code goes in `loop/`, and `AGENT-GUIDE.md`'s ownership table gains that row.
-- Fathom pull requests that change only the harness or docs carry `[skip cd]`.
+- Every `gh` call on the fork passes `--repo Cameron-Fulton/ai-software-factory`, and
+  `gh pr create` also passes `--base main`. The `upstream` remote otherwise makes `gh`
+  target Cole's repository. Never push, open pull requests or comment upstream.
+- Wait for CodeRabbit's review on fork pull requests and settle any blocking finding
+  before merging.
+- Never edit upstream-owned fork paths: `bin/`, `template/`, `docs/`, `README.md`,
+  `.gitignore`, `.gitattributes`.
+- Fathom: `[skip cd]` only on a docs-only pull request (`fathom/CLAUDE.md` line 121).
 - Delete each merged worktree and its branch in the same session.
-- Host checkouts are fast-forward only. Never hand-edit tracked files there: that stops
-  self-update.
+- Host clones are fast-forward only (`pull.ff only`). Never hand-edit tracked files
+  there.
 
 ## Decisions for the owner
 
 1. **May the factory change its own loop without a person?**
-   - What hangs on it: step 6 can only file issues against the loop, and someone has
-     to merge them.
-   - Recommendation: yes. The tests must pass on the host, and a mechanical check
-     refuses any change that removes or loosens a guard: the held list, scrutiny
-     floors, the ownership checks, or the caps. Those can only grow without the owner.
-     A loosening waits for the owner, as a single plain-language question.
-   - If no answer comes: the factory builds loop fixes and leaves them as ready pull
-     requests.
+   - What hangs on it: step 7 files issues against the loop, and someone has to merge
+     them.
+   - Recommendation: yes, for everything except the guard module. The guard module is
+     the held list, the scrutiny floors, the ownership checks and the caps. It stays
+     held, along with its own tests, because no script can fully decide whether a
+     change loosens a guard.
+   - Updates roll out to JournalX before Fathom (step 3).
+   - If no answer comes: the same. The guard module stays held, and its changes wait
+     as ready pull requests.
 
 Nothing else here needs the owner. Spider joining the factory with unattended merges
 was decided on 2026-10-17 ("Lets add it to the factory now").
