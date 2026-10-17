@@ -150,8 +150,10 @@ every ClickHouse write path.
 - **Identity:** `(repo, issue)`. An issue number alone collides across repositories.
 - **Pull requests:** a task owns pull requests in its own repository only.
 - **Cross-repository work:** one issue per repository, linked by
-  `Depends on: owner/repo#n`. A parent issue lists its children as `(repo, issue)`
-  references and closes when all of them close as completed.
+  `Depends on: owner/repo#n`. A parent issue's body carries one `Child: owner/repo#n`
+  line per child, and each child carries `Parent: owner/repo#n`. The loop reads the
+  parent's `Child:` lines and closes the parent only when every listed child is closed
+  as completed and names that parent back.
 
 Fields:
 
@@ -185,7 +187,10 @@ Only `retryable` stops are taken up again by themselves.
 ### Where it lives
 
 `.factory/loop-state.json` in each project, written atomically under the existing lock
-file `.factory/milestone-loop.lock`, so old and new code exclude each other. The schema
+file `.factory/milestone-loop.lock`, so old and new code exclude each other. Its top
+level stays `{"jobs": {"<repo>#<issue>": task}}`, the shape the collector's
+`load_loops()` already reads, so the collector change in step 2 is only the new file
+name and the new key. The schema
 lives once, in `loop/state.schema.json`. The loop and the dashboard collector both
 validate against it, and a test fails when the two disagree.
 
