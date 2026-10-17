@@ -258,15 +258,15 @@ Unblocks: steps 2 to 7.
 
 1. **One updater, release folders.** A single updater unit fetches fork `main` into the
    host clone and runs the `loop/` tests there. When they pass, it copies `loop/` into
-   `/root/factory-loop/releases/<commit>` and swaps the symlink
-   `/root/factory-loop/current` in one step. Each loop instance runs from `current` and
-   re-executes between laps when the symlink target changes. No loop ever fetches, and
-   no file changes under a running lap. That matters because scrutiny reads its prompts
+   `/root/factory-loop/releases/<commit>`. Each project has its own symlink,
+   `/root/factory-loop/current-<project>`, which the updater swaps in one step. A loop
+   instance runs from its own link and re-executes between laps when that link's target
+   changes. No loop ever fetches its own code, and no file changes under a running lap. That matters because scrutiny reads its prompts
    at call time.
 2. **Leave Fathom's live copy alone.** `/root/factory-loop/factory_loop.py` stays
    untouched until Fathom is cut over.
 3. **Template unit.** Add `factory-loop@.service` with `KillMode=control-group`, running
-   `/root/factory-loop/current/factory_loop.py --project <name>`. Widen the
+   `/root/factory-loop/current-%i/factory_loop.py --project %i`. Widen the
    `needrestart` exclusion to it.
 4. **Dashboard first.** The collector reads `loop-state.json` and the old
    `milestone-loop.json` side by side, so the page never goes stale.
@@ -280,8 +280,10 @@ Unblocks: steps 2 to 7.
    6. `systemctl enable --now factory-loop@<project>`
    7. watch one full lap
 
-   Rollback is the reverse: disable the new unit and enable the old one. The old code
-   and the original state file stay in place until that lap passes.
+   Rollback: `systemctl disable --now` the new unit and `enable --now` the old one. The
+   old code and the original state file stay in place until that lap passes. The old
+   loop resumes from the original `milestone-loop.json`, so it does not see anything
+   the new loop recorded; check the new loop's open task by hand before rolling back.
 6. **Project checkouts keep advancing.** The shared loop keeps JournalX's fast-forward
    of each project checkout between laps (today's `self_update`, pointed at the project
    rather than the loop).
@@ -294,9 +296,9 @@ Unblocks: one code path for every later change.
 
 ### 3. Rollout order for every later loop change
 
-The updater installs a new release for JournalX first. Fathom moves to it only after
-JournalX has run one full lap on it. That is a per-project `release` pointer, advanced
-by the updater.
+The updater advances `current-journalx` to a new release first. It advances
+`current-fathom` (and later `current-fathom-spider`) only after JournalX has run one full
+lap on that release.
 
 Unblocks: "the other projects get the update from our fork", with nobody copying files
 and Fathom never first.
@@ -369,8 +371,8 @@ stop causes were found by hand.
 To build those issues, the fork is worked from its own host checkout,
 `/root/factory-self`. It has the factory files installed and excluded through
 `.git/info/exclude`, not `init`, because `init` appends to the upstream-owned
-`.gitignore`. It must never be the clone the updater reads from. `loop/` is held there
-(see decision 1).
+`.gitignore`. It must never be the clone the updater reads from. The guard module and
+its tests are held there (see decision 1); the rest of `loop/` merges like any change.
 
 Unblocks: self-healing that does not depend on a person noticing.
 
