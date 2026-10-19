@@ -1,0 +1,45 @@
+# Run the repo's own tests on every pull request, so a merge gate has a result to read.
+# The upstream-sync workflow runs the same files on its merged tree; this covers every other PR.
+# Read-only token and no stored credentials: a pull request's code runs here and nowhere else.
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run bin/test*.py and bin/_test*.py
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          status=0
+          for t in bin/test*.py bin/_test*.py; do
+            if python3 "$t" > /tmp/out.txt 2>&1; then
+              echo "pass: $t"
+            else
+              status=1
+              echo "FAIL: $t"
+              tail -40 /tmp/out.txt
+            fi
+          done
+          exit $status
