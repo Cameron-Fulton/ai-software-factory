@@ -581,34 +581,6 @@ def tick_state(root: Path, **updates) -> dict:
     return state
 
 
-def sweep_worktrees(root: Path, settings: dict, source: Path, log, write) -> None:
-    """Once per period, remove this project's run worktrees whose branches are merged into
-    the base branch. A lap that changed nothing leaves a branch the base already contains,
-    so this is also how empty laps' worktrees go. Archon keeps any worktree a live or
-    resumable run owns, or one with uncommitted changes. Remote branches are kept: a local
-    sweep does not change the forge. `cleanup_minutes` in schedule.json, 0 turns it off."""
-    try:
-        schedule_data = json.loads((shared_root(root) / SCHEDULE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        schedule_data = {}
-    period = schedule_data.get("cleanup_minutes", 60)
-    if not isinstance(period, (int, float)) or isinstance(period, bool) or period <= 0:
-        return
-    if time.time() - tick_state(root).get("last_cleanup", 0) < period * 60:
-        return
-    with single_flight(shared_root(root) / ".factory/cleanup.lock") as held:
-        if not held:
-            return
-        tick_state(root, last_cleanup=time.time())
-        write("Sweeping merged run worktrees.\n")
-        if log:
-            log.flush()
-        result = execute([*cli(settings, source), "isolation", "cleanup", "--merged", "--keep-remote",
-                          "--cwd", str(root)], root, capture=False, timeout=None, output=log)
-        if result.returncode:
-            write(f"Worktree sweep exited {result.returncode}.\n")
-
-
 EMPTY_LAP_SECONDS = 300
 
 
@@ -620,12 +592,13 @@ def _when(value) -> float | None:
 
 
 def empty_lap_since(runs: list[dict], since: float) -> bool:
-    """Whether a lap started at or after `since` ended within a few minutes: it picked nothing."""
+    """Whether a lap started at or after `since` completed within a few minutes: it picked
+    nothing. A lap that failed (a usage limit, an outage) says nothing about the board."""
     for run in runs:
         start, end = _when(run.get("started_at")), _when(run.get("completed_at"))
         if start is None or end is None or start + 60 < since:
             continue
-        if run.get("status") in ENDED and end - start < EMPTY_LAP_SECONDS:
+        if run.get("status") == "completed" and end - start < EMPTY_LAP_SECONDS:
             return True
     return False
 
@@ -780,7 +753,6 @@ def schedule(root: Path, args: list[str]) -> int:
                                         capture=False, timeout=None, output=log).returncode
             if log:
                 log.flush()
-            sweep_worktrees(root, settings, source, log, write)
             # Resume due durable waits (CI pauses, usage-limit resumes) in the same tick.
             woken = 0
             with single_flight(shared_root(root) / ".factory/wake.lock") as held:
