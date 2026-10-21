@@ -582,6 +582,7 @@ def tick_state(root: Path, **updates) -> dict:
 
 
 EMPTY_LAP_SECONDS = 300
+CHOOSING_SECONDS = 1800
 
 
 def _when(value) -> float | None:
@@ -651,7 +652,12 @@ def launch_decision(root: Path, settings: dict, source: Path, write) -> bool:
     for claim in board.get("ended", []):
         write(f"Released the claim run {claim['run']} left on #{claim['number']} when it ended.\n")
     workable = board.get("workable", [])
-    choosing = active - {claim["run"] for claim in board.get("claims", [])}
+    # A lap is still choosing only early on: picking takes minutes. A long lap whose claim aged
+    # out is not choosing, and counting it as such held every launch back (seen live: an
+    # 8-hour lap blocked the second slot for over an hour).
+    recent = {run["id"] for run in runs if run.get("id") in active and
+              (_when(run.get("started_at")) or time.time()) >= time.time() - CHOOSING_SECONDS}
+    choosing = recent - {claim["run"] for claim in board.get("claims", [])}
     names = ", ".join(f"#{item['number']}" for item in workable) or "nothing"
     # The board as a lap would see it. A lap that ended within minutes of starting picked
     # nothing (a real lap takes far longer); if the board is unchanged since that launch,
