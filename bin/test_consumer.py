@@ -764,6 +764,10 @@ class LaunchGateTests(unittest.TestCase):
         self.assertFalse(self.decide(board))
         self.assertIn("No launch", self.lines[-1])
         self.assertIn("2 lap(s) active, 1 still choosing", self.lines[-1])
+        # A lap that started long ago and lost its claim (it aged out) is not choosing.
+        old = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(time.time() - 8 * 3600))
+        self.runs[0]["started_at"] = old
+        self.assertTrue(self.decide(board))
 
     def test_an_empty_lap_on_an_unchanged_board_is_not_repeated(self):
         # Seen live: the gate counted items workable that pick stayed clear of (they touch
